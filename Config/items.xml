@@ -1,0 +1,35 @@
+<configs>
+	<append xpath="/items">
+
+		<item name="hsportalGun">
+			<property name="Tags" value="weapon,ranged,gun,noMods,holdBreathAiming"/>
+			<property name="CreativeMode" value="Player"/>
+			<property name="DisplayType" value="rangedGun"/>
+			<property name="HoldType" value="1"/>
+			<property name="Meshfile" value="@:Other/Items/Weapons/Ranged/Pistol/PistolPrefab.prefab"/>
+			<property name="DropMeshfile" value="@:Other/Items/Misc/sack_droppedPrefab.prefab"/>
+			<property name="CustomIcon" value="gunHandgunT1Pistol"/>
+			<property name="CustomIconTint" value="3d7eff"/>
+			<property name="TintColor" value="61, 126, 255"/>
+			<property name="Material" value="MHandGunParts"/>
+			<property name="DescriptionKey" value="hsportalGunDesc"/>
+			<property name="Stacknumber" value="1"/>
+			<property name="DegradationBreaksAfter" value="false"/>
+			<property name="EconomicValue" value="0"/>
+			<property name="SellableToTrader" value="false"/>
+			<property name="SoundUnholster" value="weapon_unholster"/>
+			<property name="SoundHolster" value="weapon_holster"/>
+			<property name="SoundPickup" value="pistol_grab"/>
+			<property name="SoundPlace" value="pistol_place"/>
+			<property class="Action0">
+				<property name="Class" value="HSPortalGun, HSPortal"/>
+			</property>
+			<property class="Action1">
+				<property name="Class" value="HSPortalGun, HSPortal"/>
+			</property>
+			<property name="Group" value="Ammo/Weapons,Ranged Weapons,Science,TCScience"/>
+			<property name="FilterTags" value="MC_playerBlocks,SC_electrical"/>
+		</item>
+
+	</append>
+</configs>

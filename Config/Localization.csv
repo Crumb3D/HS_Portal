@@ -1,0 +1,9 @@
+Key,File,Type,UsedInMainMenu,NoTranslate,KeepLoaded,english
+hsportalGun,items,Item,,,,"Portal Gun"
+hsportalGunDesc,items,Item,,,,"Fires a linked portal pair. Left click places the blue portal, right click places the orange. One portal is inert until the other is placed. Walk through either to emerge from its partner."
+hsportalPlacedBlue,UI,Menu,,,,"Blue portal placed"
+hsportalPlacedOrange,UI,Menu,,,,"Orange portal placed"
+hsportalDenied,UI,Menu,,,,"Cannot place a portal there"
+hsportalNeedPair,UI,Menu,,,,"Portal is inert until the other colour is placed"
+hsportalFizzled,UI,Menu,,,,"Portal lost its surface"
+hsportalCleared,UI,Menu,,,,"Portals cleared"
