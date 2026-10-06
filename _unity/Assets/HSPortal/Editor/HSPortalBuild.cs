@@ -249,6 +249,8 @@ public static class HSPortalBuild
         d["HSGun_Gauge"] = Opaque("HSGun_Gauge", new Color(0.05f, 0.05f, 0.055f), 0.3f, 0.7f);
         d["HSGun_Plate"] = Opaque("HSGun_Plate", new Color(0.38f, 0.34f, 0.2f), 0.2f, 0.25f);
         d["HSGun_Hazard"] = Opaque("HSGun_Hazard", new Color(0.82f, 0.66f, 0.08f), 0.15f, 0.3f);
+        d["HSGun_GaugeFace"] = Opaque("HSGun_GaugeFace", new Color(0.85f, 0.75f, 0.52f), 0.15f, 0.65f);
+        d["HSGun_Glass"] = Glass("HSGun_Glass", new Color(0.55f, 0.78f, 0.95f, 0.28f));
         d["HSGun_Blue"] = Emissive("HSGun_Blue", new Color(0.12f, 0.38f, 0.95f), new Color(0.25f, 0.7f, 1.8f));
         d["HSGun_Orange"] = Emissive("HSGun_Orange", new Color(0.95f, 0.32f, 0.05f), new Color(1.8f, 0.45f, 0.05f));
         d["HSGun_Glow"] = Emissive("HSGun_Glow", new Color(0.55f, 0.85f, 1f), new Color(0.8f, 1.4f, 2.2f));
@@ -294,6 +296,25 @@ public static class HSPortalBuild
         m.EnableKeyword("_EMISSION");
         m.SetColor("_EmissionColor", emit);
         m.globalIlluminationFlags = MaterialGlobalIlluminationFlags.None;
+        EditorUtility.SetDirty(m);
+        return m;
+    }
+
+    static Material Glass(string name, Color c)
+    {
+        var m = Load(name);
+        m.SetFloat("_Mode", 3f);
+        m.SetOverrideTag("RenderType", "Transparent");
+        m.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.One);
+        m.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+        m.SetInt("_ZWrite", 0);
+        m.DisableKeyword("_ALPHATEST_ON");
+        m.DisableKeyword("_ALPHABLEND_ON");
+        m.EnableKeyword("_ALPHAPREMULTIPLY_ON");
+        m.renderQueue = (int)UnityEngine.Rendering.RenderQueue.Transparent;
+        m.color = c;
+        m.SetFloat("_Metallic", 0.1f);
+        m.SetFloat("_Glossiness", 0.85f);
         EditorUtility.SetDirty(m);
         return m;
     }
