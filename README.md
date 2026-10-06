@@ -2,7 +2,7 @@
 
 Survival-styled portal gun for **7 Days to Die 3.2**. Place a blue portal and an orange portal, then walk through one to emerge from the other with facing and velocity transformed.
 
-The held gun is an original industrial 7DTD weapon (claws, blue/orange coils, DANGER pack) built from `portal Gun Design.png`. It is **not** a Portal 2 mesh. **Version 0.2.0.**
+The held gun is an original industrial 7DTD weapon (claws, blue/orange coils, DANGER pack) built from `portal Gun Design.png`. It is **not** a Portal 2 mesh. **Version 0.2.1.**
 
 License: [MIT](LICENSE). Author: Crumb.
 

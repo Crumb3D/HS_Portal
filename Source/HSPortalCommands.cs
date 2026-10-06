@@ -19,8 +19,10 @@ public class ConsoleCmdHSPortal : ConsoleCmdAbstract
     public override string getHelp()
     {
         return
-            "hsportal give                 - portal gun\n" +
-            "hsportal room                 - concrete chamber around you, then give the gun\n" +
+            "On a dedicated server, type these in the in-game F1 console after you join.\n" +
+            "From the server window, add your player name: hsportal room YourName\n" +
+            "hsportal give [name]          - portal gun\n" +
+            "hsportal room [name]          - concrete chamber around you, then give the gun\n" +
             "hsportal blue | orange        - place that colour on the aimed surface\n" +
             "hsportal clear                - remove your portals\n" +
             "hsportal status | debug";
@@ -31,18 +33,10 @@ public class ConsoleCmdHSPortal : ConsoleCmdAbstract
         try
         {
             var sub = _params != null && _params.Count > 0 ? _params[0].ToLowerInvariant() : "status";
-            var world = GameManager.Instance.World;
-            EntityPlayerLocal player = null;
-            if (world != null)
-            {
-                player = world.GetPrimaryPlayer();
-                if (player == null)
-                {
-                    var locals = world.GetLocalPlayers();
-                    if (locals != null && locals.Count > 0) player = locals[0] as EntityPlayerLocal;
-                }
-            }
-            Out(Run(sub, world, player));
+            var who = _params != null && _params.Count > 1 ? _params[1] : "";
+            var world = GameManager.Instance != null ? GameManager.Instance.World : null;
+            var player = ResolvePlayer(world, _senderInfo, who);
+            Out(Run(sub, world, player, who));
         }
         catch (Exception e)
         {
@@ -51,33 +45,78 @@ public class ConsoleCmdHSPortal : ConsoleCmdAbstract
         }
     }
 
-    static string Run(string sub, World world, EntityPlayerLocal player)
+    static EntityPlayer ResolvePlayer(World world, CommandSenderInfo sender, string name)
+    {
+        if (world == null) return null;
+        if (!string.IsNullOrEmpty(name) && name != "debug" && name != "blue" && name != "orange" && name != "clear" && name != "status" && name != "give" && name != "room")
+        {
+            var named = FindByName(world, name);
+            if (named != null) return named;
+        }
+        if (sender.RemoteClientInfo != null)
+        {
+            var fromNet = world.GetEntity(sender.RemoteClientInfo.entityId) as EntityPlayer;
+            if (fromNet != null) return fromNet;
+        }
+        var local = world.GetPrimaryPlayer();
+        if (local != null) return local;
+        var locals = world.GetLocalPlayers();
+        if (locals != null && locals.Count > 0)
+        {
+            var p = locals[0] as EntityPlayer;
+            if (p != null) return p;
+        }
+        return null;
+    }
+
+    static EntityPlayer FindByName(World world, string name)
+    {
+        if (world == null || string.IsNullOrEmpty(name)) return null;
+        var list = world.GetPlayers();
+        if (list == null) return null;
+        for (int i = 0; i < list.Count; i++)
+        {
+            var p = list[i] as EntityPlayer;
+            if (p == null) continue;
+            if (string.Equals(p.EntityName, name, StringComparison.OrdinalIgnoreCase)) return p;
+        }
+        return null;
+    }
+
+    static string NeedPlayer(string triedName)
+    {
+        if (!string.IsNullOrEmpty(triedName))
+            return "No player named '" + triedName + "'. They must be in the world. From the server window: hsportal room TheirName";
+        return "No player. Dedicated server has no 'local' player — type this in the in-game F1 console after you join, or from the server window: hsportal room YourName";
+    }
+
+    static string Run(string sub, World world, EntityPlayer player, string who)
     {
         switch (sub)
         {
             case "give":
-                return Give(player);
+                return Give(player, who);
             case "room":
-                return BuildRoom(world, player);
+                return BuildRoom(world, player, who);
             case "blue":
-                return Place(world, player, false);
+                return Place(world, player, false, who);
             case "orange":
-                return Place(world, player, true);
+                return Place(world, player, true, who);
             case "clear":
-                if (player == null) return "No local player.";
+                if (player == null) return NeedPlayer(who);
                 HSPortalNet.SendClear(player.entityId);
                 return Localization.Get("hsportalCleared");
             case "debug":
                 HSPortalDebug.Enabled = !HSPortalDebug.Enabled;
                 return "Debug " + (HSPortalDebug.Enabled ? "on" : "off");
             default:
-                return Status(player);
+                return Status(player, who);
         }
     }
 
-    static string Status(EntityPlayerLocal player)
+    static string Status(EntityPlayer player, string who)
     {
-        if (player == null) return "No local player.";
+        if (player == null) return NeedPlayer(who);
         var pair = HSPortalWorld.GetPair(player.entityId, false);
         if (pair == null || (pair.Blue == null && pair.Orange == null)) return "No portals.";
         var b = pair.Blue == null ? "none" : Fmt(pair.Blue);
@@ -90,12 +129,14 @@ public class ConsoleCmdHSPortal : ConsoleCmdAbstract
         return p.Center.ToString("F1") + " n=" + p.Normal.ToString("F0") + " face=" + p.Face;
     }
 
-    static string Place(World world, EntityPlayerLocal player, bool orange)
+    static string Place(World world, EntityPlayer player, bool orange, string who)
     {
-        if (player == null || world == null) return "No local player.";
+        if (player == null || world == null) return NeedPlayer(who);
         if (HSPortalNet.IsRemoteClient)
         {
-            HSPortalNet.SendPlace(player, orange);
+            var local = player as EntityPlayerLocal;
+            if (local == null) return "Place from your own F1 console.";
+            HSPortalNet.SendPlace(local, orange);
             return "Requested " + (orange ? "orange" : "blue") + " portal.";
         }
         string fail;
@@ -104,20 +145,20 @@ public class ConsoleCmdHSPortal : ConsoleCmdAbstract
         return Localization.Get(orange ? "hsportalPlacedOrange" : "hsportalPlacedBlue");
     }
 
-    static string Give(EntityPlayerLocal player)
+    static string Give(EntityPlayer player, string who)
     {
-        if (player == null || player.inventory == null) return "No local player.";
+        if (player == null || player.inventory == null) return NeedPlayer(who);
         var item = ItemClass.GetItem("hsportalGun", true);
         if (item == null || item.ItemClass == null) return "hsportalGun is not loaded.";
         var stack = new ItemStack(new ItemValue(item.type, true), 1);
         if (!player.inventory.AddItem(stack)) return "Inventory full.";
-        return "Gave Portal Gun.";
+        return "Gave Portal Gun to " + player.EntityName + ".";
     }
 
-    static string BuildRoom(World world, EntityPlayerLocal player)
+    static string BuildRoom(World world, EntityPlayer player, string who)
     {
-        if (world == null || player == null) return "No local player.";
-        if (!HSPortalNet.IsAuthority) return "Host only.";
+        if (world == null || player == null) return NeedPlayer(who);
+        if (!HSPortalNet.IsAuthority) return "Host only. On a dedicated server this must run on the server (F1 as admin, or server console with your name).";
         var block = FindCube();
         if (block == null) return "No cube block (tried concreteShapes:Cube / steelShapes:Cube).";
         var bv = block.ToBlockValue();
@@ -158,11 +199,12 @@ public class ConsoleCmdHSPortal : ConsoleCmdAbstract
         world.SetBlocksRPC(changes);
         var stand = new Vector3(cx + 0.5f, fy + 1.1f, cz + 0.5f);
         player.SetPosition(stand, true);
-        var fp = player.vp_FPController;
-        if (fp != null) fp.SetPosition(stand - Origin.position);
-        Give(player);
-        HSPortalDebug.Info("Test room at " + new Vector3i(cx, fy, cz) + " block=" + block.GetBlockName() + " changes=" + changes.Count);
-        return "Built concrete test room (" + changes.Count + " blocks) and gave the Portal Gun. Left click blue, right click orange.";
+        var local = player as EntityPlayerLocal;
+        if (local != null && local.vp_FPController != null)
+            local.vp_FPController.SetPosition(stand - Origin.position);
+        Give(player, who);
+        HSPortalDebug.Info("Test room at " + new Vector3i(cx, fy, cz) + " block=" + block.GetBlockName() + " player=" + player.EntityName + " changes=" + changes.Count);
+        return "Built concrete test room for " + player.EntityName + " (" + changes.Count + " blocks) and gave the Portal Gun. Left click blue, right click orange.";
     }
 
     static Block FindCube()

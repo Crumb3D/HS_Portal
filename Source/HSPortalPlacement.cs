@@ -8,7 +8,7 @@ public static class HSPortalPlacement
     const float SlideMax = 0.9f;
     const float Sample = 0.22f;
 
-    public static bool TryPlace(World world, EntityPlayerLocal player, bool orange, out string fail)
+    public static bool TryPlace(World world, EntityPlayer player, bool orange, out string fail)
     {
         fail = null;
         HSPortal portal;
@@ -18,7 +18,7 @@ public static class HSPortalPlacement
         return true;
     }
 
-    public static bool TryBuild(World world, EntityPlayerLocal player, bool orange, out HSPortal portal, out string fail)
+    public static bool TryBuild(World world, EntityPlayer player, bool orange, out HSPortal portal, out string fail)
     {
         portal = null;
         fail = Localization.Get("hsportalDenied");
