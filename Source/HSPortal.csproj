@@ -81,6 +81,9 @@
     <Compile Include="HSPortalController.cs" />
     <Compile Include="HSPortalCommands.cs" />
     <Compile Include="ItemActionHSPortalGun.cs" />
+    <Compile Include="ItemActionHSPortalGelGun.cs" />
+    <Compile Include="HSPortalGel.cs" />
+    <Compile Include="HSPortalGelVisual.cs" />
     <Compile Include="HSPortalNet.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />

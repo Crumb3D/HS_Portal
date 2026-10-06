@@ -1,5 +1,6 @@
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using System.Reflection;
 using HarmonyLib;
 using UnityEngine;
@@ -11,6 +12,8 @@ public static class HSPortalNet
     public const byte State = 3;
     public const byte Teleport = 4;
     public const byte Tip = 5;
+    public const byte GelPaint = 6;
+    public const byte GelState = 7;
 
     public static bool IsAuthority
     {
@@ -154,11 +157,50 @@ public static class HSPortalNet
         catch { }
     }
 
+    public static void SendGelPaint(EntityPlayerLocal player, bool orange)
+    {
+        if (player == null) return;
+        var ray = player.GetLookRay();
+        ToServer(Pkg().OfGelPaint(player.entityId, orange, ray.origin, ray.direction));
+    }
+
+    public static void BroadcastGels()
+    {
+        if (!IsAuthority) return;
+        List<Vector3i> cells;
+        List<byte> faces;
+        List<byte> colors;
+        HSPortalGel.Snapshot(out cells, out faces, out colors);
+        ToClients(Pkg().OfGelState(cells, faces, colors));
+    }
+
+    public static void HandleGelPaint(int ownerId, bool orange, Vector3 origin, Vector3 dir)
+    {
+        if (!IsAuthority) return;
+        var world = GameManager.Instance != null ? GameManager.Instance.World : null;
+        if (world == null) return;
+        string fail;
+        if (!HSPortalGel.PaintRay(world, new Ray(origin, dir), orange ? HSPortalGel.Orange : HSPortalGel.Blue, out fail))
+        {
+            TellOwner(ownerId, fail);
+            return;
+        }
+        BroadcastGels();
+        TellOwner(ownerId, Localization.Get(orange ? "hsportalGelOrange" : "hsportalGelBlue"));
+    }
+
+    public static void HandleGelState(List<Vector3i> cells, List<byte> faces, List<byte> colors)
+    {
+        if (IsAuthority) return;
+        HSPortalGel.ReplaceAll(cells, faces, colors);
+    }
+
     public static void OnPlayerSpawned(ref ModEvents.SPlayerSpawnedInWorldData data)
     {
         if (!IsAuthority) return;
         foreach (var kv in HSPortalWorld.All)
             BroadcastState(kv.Key);
+        BroadcastGels();
     }
 
     public static void HandlePlace(int ownerId, bool orange, Vector3 origin, Vector3 dir)
@@ -206,6 +248,9 @@ public class NetPackageHSPortal : NetPackage
     float pitch;
     HSPortal blue;
     HSPortal orangePortal;
+    List<Vector3i> gelCells;
+    List<byte> gelFaces;
+    List<byte> gelColors;
 
     public override NetPackageDirection PackageDirection { get { return NetPackageDirection.Both; } }
 
@@ -246,6 +291,25 @@ public class NetPackageHSPortal : NetPackage
         return this;
     }
 
+    public NetPackageHSPortal OfGelPaint(int owner, bool isOrange, Vector3 origin, Vector3 dir)
+    {
+        kind = HSPortalNet.GelPaint;
+        ownerId = owner;
+        orange = isOrange;
+        a = origin;
+        b = dir;
+        return this;
+    }
+
+    public NetPackageHSPortal OfGelState(List<Vector3i> cells, List<byte> faces, List<byte> colors)
+    {
+        kind = HSPortalNet.GelState;
+        gelCells = cells;
+        gelFaces = faces;
+        gelColors = colors;
+        return this;
+    }
+
     public NetPackageHSPortal OfTip(string msg)
     {
         kind = HSPortalNet.Tip;
@@ -268,6 +332,16 @@ public class NetPackageHSPortal : NetPackage
         text = br.ReadString();
         blue = ReadPortal(br);
         orangePortal = ReadPortal(br);
+        int gn = br.ReadInt32();
+        gelCells = new List<Vector3i>(gn);
+        gelFaces = new List<byte>(gn);
+        gelColors = new List<byte>(gn);
+        for (int i = 0; i < gn; i++)
+        {
+            gelCells.Add(new Vector3i(br.ReadInt32(), br.ReadInt32(), br.ReadInt32()));
+            gelFaces.Add(br.ReadByte());
+            gelColors.Add(br.ReadByte());
+        }
     }
 
     public override void write(PooledBinaryWriter bw)
@@ -284,6 +358,16 @@ public class NetPackageHSPortal : NetPackage
         bw.Write(text ?? "");
         WritePortal(bw, blue);
         WritePortal(bw, orangePortal);
+        int gn = gelCells != null ? gelCells.Count : 0;
+        bw.Write(gn);
+        for (int i = 0; i < gn; i++)
+        {
+            bw.Write(gelCells[i].x);
+            bw.Write(gelCells[i].y);
+            bw.Write(gelCells[i].z);
+            bw.Write(gelFaces[i]);
+            bw.Write(gelColors[i]);
+        }
     }
 
     static void WritePortal(PooledBinaryWriter bw, HSPortal p)
@@ -351,6 +435,12 @@ public class NetPackageHSPortal : NetPackage
                     break;
                 case HSPortalNet.Tip:
                     HSPortalNet.TellLocal(text);
+                    break;
+                case HSPortalNet.GelPaint:
+                    HSPortalNet.HandleGelPaint(ownerId, orange, a, b);
+                    break;
+                case HSPortalNet.GelState:
+                    HSPortalNet.HandleGelState(gelCells, gelFaces, gelColors);
                     break;
             }
         }

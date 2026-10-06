@@ -2,5 +2,6 @@
 	<append xpath="/doc/tips">
 		<tip key="loadingTipHSPortalGun" />
 		<tip key="loadingTipHSPortalCraft" />
+		<tip key="loadingTipHSPortalGel" />
 	</append>
 </configs>

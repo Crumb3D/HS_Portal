@@ -8,7 +8,7 @@ public class HSPortalMod : IModApi
     public void InitMod(Mod _modInstance)
     {
         ModPath = _modInstance.Path;
-        HSPortalDebug.Info("Init v0.2.1; admin: hsportal give | room | blue | orange | clear");
+        HSPortalDebug.Info("Init v0.3.0; admin: hsportal give | room | blue | orange | clear | gel");
         HSPortalNet.RegisterPackage();
         ModEvents.GameStartDone.RegisterHandler(OnGameStartDone);
         ModEvents.WorldShuttingDown.RegisterHandler(OnWorldShuttingDown);
@@ -28,6 +28,7 @@ public class HSPortalMod : IModApi
         try
         {
             HSPortalController.EnsureCreated();
+            HSPortalGel.EnsureLoaded();
         }
         catch (System.Exception e)
         {
@@ -41,7 +42,10 @@ public class HSPortalMod : IModApi
         {
             HSPortalController.OnWorldShuttingDown();
             HSPortalWorld.ClearAll();
+            HSPortalGel.Save();
+            HSPortalGel.ClearAll();
             HSPortalVisual.DestroyAll();
+            HSPortalGelVisual.DestroyAll();
         }
         catch (System.Exception e)
         {

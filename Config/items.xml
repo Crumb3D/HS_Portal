@@ -56,5 +56,66 @@
 			<property name="FilterTags" value="MC_playerBlocks,SC_electrical"/>
 		</item>
 
+		<item name="hsportalGelGun">
+			<property name="Tags" value="weapon,ranged,gun,noMods,holdBreathAiming,electricianSkill"/>
+			<property name="CreativeMode" value="Player"/>
+			<property name="DisplayType" value="rangedGun"/>
+			<property name="HoldType" value="1"/>
+			<property name="Meshfile" value="#@modfolder:Resources/HSPortal.unity3d?GelGun"/>
+			<property name="DropMeshfile" value="@:Other/Items/Misc/sack_droppedPrefab.prefab"/>
+			<property name="CustomIcon" value="hsportalGelGun"/>
+			<property name="Material" value="MHandGunParts"/>
+			<property name="DescriptionKey" value="hsportalGelGunDesc"/>
+			<property name="UnlockedBy" value="craftingElectrician"/>
+			<property name="Stacknumber" value="1"/>
+			<property name="DegradationBreaksAfter" value="false"/>
+			<property name="EconomicValue" value="400"/>
+			<property name="SellableToTrader" value="false"/>
+			<property name="SoundUnholster" value="weapon_unholster"/>
+			<property name="SoundHolster" value="weapon_holster"/>
+			<property name="SoundPickup" value="pistol_grab"/>
+			<property name="SoundPlace" value="pistol_place"/>
+			<property class="Action0">
+				<property name="Class" value="HSPortalGelGun, HSPortal"/>
+			</property>
+			<property class="Action1">
+				<property name="Class" value="HSPortalGelGun, HSPortal"/>
+			</property>
+			<property name="Group" value="Ammo/Weapons,Ranged Weapons,Science,TCScience"/>
+			<property name="FilterTags" value="MC_playerBlocks,SC_electrical"/>
+		</item>
+
+		<item name="hsportalBoots">
+			<property name="Extends" value="armorLightMaster" param1="CustomIcon"/>
+			<property name="CreativeMode" value="Player"/>
+			<property name="DescriptionKey" value="hsportalBootsDesc"/>
+			<property name="DisplayType" value="armorLight"/>
+			<property name="CustomIcon" value="hsportalBoots"/>
+			<property name="Tags" value="lowerbody,feet,armor,armorFeet,lightArmor,lightArmorDeg,electricianSkill"/>
+			<property name="EquipSlot" value="Feet"/>
+			<property name="UnlockedBy" value="craftingElectrician"/>
+			<property name="SoundPickup" value="footwear_leather_grab"/>
+			<property name="SoundPlace" value="footwear_leather_place"/>
+			<property name="Group" value="Clothing,Armor,TCArmor,Science,TCScience"/>
+			<property name="SellableToTrader" value="false"/>
+			<property name="ShowQuality" value="false"/>
+			<property name="EconomicValue" value="350"/>
+			<effect_group name="HSPortalBoots" tiered="false">
+				<passive_effect name="ModSlots" operation="base_set" value="0"/>
+				<passive_effect name="PhysicalDamageResist" operation="base_add" value="6"/>
+				<passive_effect name="DegradationMax" operation="base_set" value="400"/>
+				<display_value name="dFallDamage" value="-1"/>
+				<triggered_effect trigger="onSelfEquipStart" action="AddBuff" buff="buffHSPortalLongFall"/>
+				<triggered_effect trigger="onSelfEquipStop" action="RemoveBuff" buff="buffHSPortalLongFall"/>
+				<triggered_effect trigger="onSelfEquipStart" action="ModifyCVar" cvar="$hsportalNoFall" operation="set" value="1"/>
+				<triggered_effect trigger="onSelfEquipStop" action="ModifyCVar" cvar="$hsportalNoFall" operation="set" value="0"/>
+			</effect_group>
+			<property class="SDCS">
+				<property name="Prefab" value="@:Entities/Player/{sex}/Gear/Fiber/gear{sex}FiberPrefab.prefab"/>
+				<property name="TransformName" value="feet"/>
+				<property name="Excludes" value="feet"/>
+			</property>
+		</item>
+
 	</append>
 </configs>

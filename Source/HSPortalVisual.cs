@@ -1,12 +1,27 @@
+using System;
 using System.Collections.Generic;
 using UnityEngine;
 
 public static class HSPortalVisual
 {
-    static readonly Dictionary<string, GameObject> roots = new Dictionary<string, GameObject>();
+    class View
+    {
+        public GameObject root;
+        public GameObject fill;
+        public GameObject rim;
+        public Camera cam;
+        public RenderTexture rt;
+        public Material viewMat;
+        public Material solidMat;
+        public bool linked;
+    }
+
+    static readonly Dictionary<string, View> views = new Dictionary<string, View>();
     static Mesh disc;
     static Mesh ring;
-    static Shader shader;
+    static Shader colorShader;
+    static Shader texShader;
+    const int RtSize = 512;
 
     static string Key(int owner, bool orange)
     {
@@ -26,58 +41,157 @@ public static class HSPortalVisual
 
     public static void DestroyAll()
     {
-        var keys = new List<string>(roots.Keys);
+        var keys = new List<string>(views.Keys);
         for (int i = 0; i < keys.Count; i++) DestroyKey(keys[i]);
     }
 
     public static void SyncAll()
     {
-        if (roots.Count == 0) return;
+        if (views.Count == 0) return;
         foreach (var kv in HSPortalWorld.All)
         {
             var pair = kv.Value;
             if (pair == null) continue;
-            Sync(pair.Blue);
-            Sync(pair.Orange);
+            SyncPose(pair.Blue);
+            SyncPose(pair.Orange);
+        }
+        RenderViews();
+    }
+
+    static void SyncPose(HSPortal portal)
+    {
+        if (portal == null) return;
+        View v;
+        if (!views.TryGetValue(Key(portal.OwnerId, portal.Orange), out v) || v == null || v.root == null) return;
+        v.root.transform.position = portal.Center - Origin.position;
+        v.root.transform.rotation = portal.Rotation;
+    }
+
+    static void RenderViews()
+    {
+        if (GameManager.IsDedicatedServer) return;
+        var playerCam = PlayerCam();
+        if (playerCam == null) return;
+        foreach (var kv in HSPortalWorld.All)
+        {
+            var pair = kv.Value;
+            if (pair == null || !pair.Linked || pair.Blue == null || pair.Orange == null) continue;
+            RenderThrough(pair.Blue, pair.Orange, playerCam);
+            RenderThrough(pair.Orange, pair.Blue, playerCam);
         }
     }
 
-    static void Sync(HSPortal portal)
+    static void RenderThrough(HSPortal lookingAt, HSPortal dest, Camera playerCam)
     {
-        if (portal == null) return;
-        GameObject go;
-        if (!roots.TryGetValue(Key(portal.OwnerId, portal.Orange), out go) || go == null) return;
-        go.transform.position = portal.Center - Origin.position;
-        go.transform.rotation = portal.Rotation;
+        View v;
+        if (!views.TryGetValue(Key(lookingAt.OwnerId, lookingAt.Orange), out v) || v == null || v.cam == null) return;
+        var camWorld = playerCam.transform.position + Origin.position;
+        var outWorld = HSPortalMath.TransformPoint(lookingAt, dest, camWorld);
+        v.cam.transform.position = outWorld - Origin.position;
+        v.cam.transform.rotation = HSPortalMath.TransformRotation(lookingAt, dest, playerCam.transform.rotation);
+        v.cam.ResetProjectionMatrix();
+        v.cam.fieldOfView = playerCam.fieldOfView;
+        v.cam.nearClipPlane = 0.08f;
+        v.cam.farClipPlane = playerCam.farClipPlane > 1f ? playerCam.farClipPlane : 250f;
+        v.cam.aspect = playerCam.aspect;
+        v.cam.cullingMask = playerCam.cullingMask;
+        v.cam.useOcclusionCulling = false;
+        v.cam.clearFlags = playerCam.clearFlags;
+        v.cam.backgroundColor = playerCam.backgroundColor;
+        SetOblique(v.cam, dest.Center - Origin.position, dest.Normal);
+
+        View destView;
+        bool destWasOn = false;
+        if (views.TryGetValue(Key(dest.OwnerId, dest.Orange), out destView) && destView != null && destView.fill != null)
+        {
+            destWasOn = destView.fill.activeSelf;
+            destView.fill.SetActive(false);
+        }
+        if (v.fill != null) v.fill.SetActive(false);
+        v.cam.Render();
+        if (v.fill != null) v.fill.SetActive(true);
+        if (destView != null && destView.fill != null) destView.fill.SetActive(destWasOn);
+        if (v.viewMat != null) v.viewMat.mainTexture = v.rt;
+    }
+
+    static void SetOblique(Camera cam, Vector3 planePos, Vector3 planeNormal)
+    {
+        var offset = planePos + planeNormal * 0.04f;
+        var m = cam.worldToCameraMatrix;
+        var cpos = m.MultiplyPoint(offset);
+        var cnormal = m.MultiplyVector(planeNormal).normalized;
+        if (Mathf.Abs(cnormal.z) < 0.001f) return;
+        var clip = new Vector4(cnormal.x, cnormal.y, cnormal.z, -Vector3.Dot(cpos, cnormal));
+        try { cam.projectionMatrix = cam.CalculateObliqueMatrix(clip); }
+        catch { cam.ResetProjectionMatrix(); }
+    }
+
+    static Camera PlayerCam()
+    {
+        try
+        {
+            var world = GameManager.Instance != null ? GameManager.Instance.World : null;
+            var p = world != null ? world.GetPrimaryPlayer() : null;
+            if (p != null && p.playerCamera != null) return p.playerCamera;
+        }
+        catch { }
+        return Camera.main;
     }
 
     static void DestroyKey(string key)
     {
-        GameObject go;
-        if (!roots.TryGetValue(key, out go)) return;
-        roots.Remove(key);
-        if (go != null) Object.Destroy(go);
+        View v;
+        if (!views.TryGetValue(key, out v)) return;
+        views.Remove(key);
+        if (v == null) return;
+        if (v.cam != null) UnityEngine.Object.Destroy(v.cam.gameObject);
+        if (v.rt != null) v.rt.Release();
+        if (v.root != null) UnityEngine.Object.Destroy(v.root);
     }
 
     static void Build(HSPortal portal, bool linked)
     {
         EnsureMesh();
-        var go = new GameObject(portal.Orange ? "HSPortalOrange" : "HSPortalBlue");
-        Object.DontDestroyOnLoad(go);
-        go.transform.position = portal.Center - Origin.position;
-        go.transform.rotation = portal.Rotation;
-        go.transform.localScale = new Vector3(portal.HalfWidth * 2f, portal.HalfHeight * 2f, 1f);
+        var v = new View();
+        v.linked = linked;
+        v.root = new GameObject(portal.Orange ? "HSPortalOrange" : "HSPortalBlue");
+        UnityEngine.Object.DontDestroyOnLoad(v.root);
+        v.root.transform.position = portal.Center - Origin.position;
+        v.root.transform.rotation = portal.Rotation;
+        v.root.transform.localScale = new Vector3(portal.HalfWidth * 2f, portal.HalfHeight * 2f, 1f);
 
-        var rim = new GameObject("rim");
-        rim.transform.SetParent(go.transform, false);
-        rim.transform.localPosition = new Vector3(0f, 0f, 0.005f);
-        AddMesh(rim, ring, Tint(portal.Orange, linked, true));
+        v.rim = new GameObject("rim");
+        v.rim.transform.SetParent(v.root.transform, false);
+        v.rim.transform.localPosition = new Vector3(0f, 0f, 0.008f);
+        AddMesh(v.rim, ring, Tint(portal.Orange, linked, true));
 
-        var fill = new GameObject("fill");
-        fill.transform.SetParent(go.transform, false);
-        AddMesh(fill, disc, Tint(portal.Orange, linked, false));
+        v.fill = new GameObject("fill");
+        v.fill.transform.SetParent(v.root.transform, false);
+        var fillMr = AddMesh(v.fill, disc, Tint(portal.Orange, linked, false));
+        v.solidMat = fillMr.sharedMaterial;
 
-        roots[Key(portal.OwnerId, portal.Orange)] = go;
+        if (linked)
+        {
+            v.rt = new RenderTexture(RtSize, RtSize, 16);
+            v.rt.name = "HSPortalRT_" + Key(portal.OwnerId, portal.Orange);
+            var camGo = new GameObject("HSPortalCam_" + (portal.Orange ? "O" : "B"));
+            UnityEngine.Object.DontDestroyOnLoad(camGo);
+            v.cam = camGo.AddComponent<Camera>();
+            v.cam.enabled = false;
+            v.cam.targetTexture = v.rt;
+            v.cam.depth = -20;
+            v.cam.clearFlags = CameraClearFlags.Skybox;
+            v.cam.allowHDR = false;
+            v.cam.allowMSAA = false;
+            v.cam.useOcclusionCulling = false;
+            var al = camGo.GetComponent<AudioListener>();
+            if (al != null) UnityEngine.Object.Destroy(al);
+            v.viewMat = ViewMat(Tint(portal.Orange, true, false));
+            v.viewMat.mainTexture = v.rt;
+            fillMr.sharedMaterial = v.viewMat;
+        }
+
+        views[Key(portal.OwnerId, portal.Orange)] = v;
     }
 
     static Color Tint(bool orange, bool linked, bool rim)
@@ -85,32 +199,58 @@ public static class HSPortalVisual
         Color c = orange ? new Color(1f, 0.42f, 0.06f, 1f) : new Color(0.18f, 0.55f, 1f, 1f);
         if (rim) return Color.Lerp(c, Color.white, 0.25f);
         if (!linked) return Color.Lerp(c, new Color(0.08f, 0.08f, 0.1f, 1f), 0.55f);
-        return Color.Lerp(c, Color.white, 0.08f) * 0.85f;
+        return Color.white;
     }
 
-    static void AddMesh(GameObject go, Mesh mesh, Color color)
+    static MeshRenderer AddMesh(GameObject go, Mesh mesh, Color color)
     {
         var mf = go.AddComponent<MeshFilter>();
         mf.sharedMesh = mesh;
         var mr = go.AddComponent<MeshRenderer>();
-        mr.sharedMaterial = Mat(color);
+        mr.sharedMaterial = ColorMat(color);
         mr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
         mr.receiveShadows = false;
+        return mr;
     }
 
-    static Material Mat(Color color)
+    static Material ColorMat(Color color)
     {
-        if (shader == null)
+        if (colorShader == null)
         {
-            shader = Shader.Find("Unlit/Color");
-            if (shader == null) shader = Shader.Find("Sprites/Default");
-            if (shader == null) shader = Shader.Find("Hidden/Internal-Colored");
-            if (shader == null) shader = Shader.Find("Standard");
+            colorShader = Shader.Find("Unlit/Color");
+            if (colorShader == null) colorShader = Shader.Find("Sprites/Default");
+            if (colorShader == null) colorShader = Shader.Find("Hidden/Internal-Colored");
         }
-        var m = new Material(shader != null ? shader : Shader.Find("Standard"));
+        var m = new Material(colorShader);
         if (m.HasProperty("_Color")) m.SetColor("_Color", color);
         else m.color = color;
         m.renderQueue = 3000;
+        return m;
+    }
+
+    static Material ViewMat(Color tint)
+    {
+        if (texShader == null)
+        {
+            var names = new[]
+            {
+                "HSPortal/View",
+                "Unlit/Texture",
+                "Unlit/Transparent",
+                "Sprites/Default",
+                "UI/Default",
+                "Legacy Shaders/Diffuse"
+            };
+            for (int i = 0; i < names.Length; i++)
+            {
+                var s = Shader.Find(names[i]);
+                if (s != null && s.isSupported) { texShader = s; break; }
+            }
+            if (texShader == null) texShader = colorShader;
+        }
+        var m = new Material(texShader);
+        if (m.HasProperty("_Color")) m.SetColor("_Color", tint);
+        m.renderQueue = 2999;
         return m;
     }
 

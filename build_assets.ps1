@@ -46,6 +46,11 @@ Write-Host "Blender: $blender"
 & $blender --background --factory-startup --python $BlenderScript -- $Models
 if ($LASTEXITCODE -ne 0) { throw "Blender export failed ($LASTEXITCODE)" }
 
+$propPy = Join-Path $Root "_blender\hsportal_props.py"
+Write-Host "Props: $propPy"
+& $blender --background --factory-startup --python $propPy -- $Models
+if ($LASTEXITCODE -ne 0) { throw "Blender props failed ($LASTEXITCODE)" }
+
 $blend = Join-Path $Root "_blender\hsportal_gun.blend"
 $iconPy = Join-Path $Root "_blender\hsportal_icons.py"
 $iconOut = Join-Path $Root "UIAtlases\ItemIconAtlas"
@@ -53,6 +58,14 @@ if (Test-Path $blend) {
     Write-Host "Icons: $iconOut"
     & $blender --background $blend --python $iconPy -- $iconOut
     if ($LASTEXITCODE -ne 0) { throw "Icon render failed ($LASTEXITCODE)" }
+}
+
+$propBlend = Join-Path $Root "_blender\hsportal_props.blend"
+$propIconPy = Join-Path $Root "_blender\hsportal_prop_icons.py"
+if (Test-Path $propBlend) {
+    Write-Host "Prop icons: $iconOut"
+    & $blender --background $propBlend --python $propIconPy -- $iconOut
+    if ($LASTEXITCODE -ne 0) { throw "Prop icon render failed ($LASTEXITCODE)" }
 }
 
 Write-Host "Unity: $UnityExe"

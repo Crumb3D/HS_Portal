@@ -78,27 +78,30 @@ public static class HSPortalBuild
             AssetDatabase.Refresh(ImportAssetOptions.ForceUpdate);
 
             AnimationClip idleClip = null, fireClip = null, rejectClip = null;
-            GameObject src = null;
-            foreach (var guid in AssetDatabase.FindAssets("t:Model", new[] { Root + "/Models" }))
+            var gunPath = Root + "/Models/PortalGun.fbx";
+            GameObject src = AssetDatabase.LoadAssetAtPath<GameObject>(gunPath);
+            if (src == null)
             {
-                var path = AssetDatabase.GUIDToAssetPath(guid);
-                src = AssetDatabase.LoadAssetAtPath<GameObject>(path);
-                if (src == null) continue;
-                var loaded = AssetDatabase.LoadAllAssetsAtPath(path);
-                for (int i = 0; i < loaded.Length; i++)
+                foreach (var guid in AssetDatabase.FindAssets("PortalGun t:Model", new[] { Root + "/Models" }))
                 {
-                    var clip = loaded[i] as AnimationClip;
-                    if (clip == null) continue;
-                    if (clip.name.StartsWith("__preview", StringComparison.Ordinal)) continue;
-                    var n = clip.name;
-                    if (MatchClip(n, "Idle") && idleClip == null) idleClip = clip;
-                    else if (MatchClip(n, "Fire") && fireClip == null) fireClip = clip;
-                    else if (MatchClip(n, "Reject") && rejectClip == null) rejectClip = clip;
+                    gunPath = AssetDatabase.GUIDToAssetPath(guid);
+                    src = AssetDatabase.LoadAssetAtPath<GameObject>(gunPath);
+                    if (src != null) break;
                 }
-                log.AppendLine("Model " + src.name + " clips idle=" + (idleClip != null) + " fire=" + (fireClip != null) + " reject=" + (rejectClip != null));
-                break;
             }
             if (src == null) throw new Exception("No PortalGun model in " + Root + "/Models");
+            var loaded = AssetDatabase.LoadAllAssetsAtPath(gunPath);
+            for (int i = 0; i < loaded.Length; i++)
+            {
+                var clip = loaded[i] as AnimationClip;
+                if (clip == null) continue;
+                if (clip.name.StartsWith("__preview", StringComparison.Ordinal)) continue;
+                var n = clip.name;
+                if (MatchClip(n, "Idle") && idleClip == null) idleClip = clip;
+                else if (MatchClip(n, "Fire") && fireClip == null) fireClip = clip;
+                else if (MatchClip(n, "Reject") && rejectClip == null) rejectClip = clip;
+            }
+            log.AppendLine("Model " + src.name + " clips idle=" + (idleClip != null) + " fire=" + (fireClip != null) + " reject=" + (rejectClip != null));
 
             var ctrlPath = Root + "/Anim/PortalGun.controller";
             if (AssetDatabase.LoadAssetAtPath<AnimatorController>(ctrlPath) != null)
@@ -122,11 +125,16 @@ public static class HSPortalBuild
 
             var go = UnityEngine.Object.Instantiate(src);
             go.name = "PortalGun";
+            if (PrefabUtility.IsPartOfPrefabInstance(go))
+                PrefabUtility.UnpackPrefabInstance(go, PrefabUnpackMode.Completely, InteractionMode.AutomatedAction);
             ApplyMats(go, mats);
             var anims = go.GetComponentsInChildren<Animator>(true);
             for (int i = 0; i < anims.Length; i++)
                 UnityEngine.Object.DestroyImmediate(anims[i]);
-            var animator = go.AddComponent<Animator>();
+            var hold = OrientForHold(go);
+            AttachViewProbe(hold != null ? hold.gameObject : go, mats);
+            var animatorHost = hold != null ? hold.gameObject : go;
+            var animator = animatorHost.AddComponent<Animator>();
             animator.runtimeAnimatorController = ctrl;
             animator.applyRootMotion = false;
             animator.cullingMode = AnimatorCullingMode.AlwaysAnimate;
@@ -143,6 +151,15 @@ public static class HSPortalBuild
             AssetImporter.GetAtPath(prefabPath).SetAssetBundleNameAndVariant(BundleName, "");
             AssetImporter.GetAtPath(ctrlPath).SetAssetBundleNameAndVariant(BundleName, "");
             log.AppendLine(string.Format("PortalGun bounds min {0} max {1}", V(b.min), V(b.max)));
+
+            foreach (var guid in AssetDatabase.FindAssets("t:Model", new[] { Root + "/Models" }))
+            {
+                var path = AssetDatabase.GUIDToAssetPath(guid);
+                var model = AssetDatabase.LoadAssetAtPath<GameObject>(path);
+                if (model == null) continue;
+                if (model.name.Equals("PortalGun", StringComparison.OrdinalIgnoreCase)) continue;
+                MakePropPrefab(model, mats, log);
+            }
 
             AssetDatabase.SaveAssets();
 
@@ -205,15 +222,43 @@ public static class HSPortalBuild
 
     static Bounds RenderBounds(GameObject go)
     {
-        var rs = go.GetComponentsInChildren<Renderer>(true);
-        if (rs.Length == 0) return new Bounds();
-        var b = rs[0].bounds;
-        for (int i = 1; i < rs.Length; i++) b.Encapsulate(rs[i].bounds);
+        Bounds b = new Bounds();
+        bool any = false;
+        var filters = go.GetComponentsInChildren<MeshFilter>(true);
+        for (int i = 0; i < filters.Length; i++)
+        {
+            var mf = filters[i];
+            if (mf == null || mf.sharedMesh == null) continue;
+            if (mf.name == "ViewProbe") continue;
+            var meshB = mf.sharedMesh.bounds;
+            var m = mf.transform.localToWorldMatrix;
+            var c = meshB.center;
+            var e = meshB.extents;
+            var corners = new Vector3[]
+            {
+                new Vector3(c.x - e.x, c.y - e.y, c.z - e.z),
+                new Vector3(c.x - e.x, c.y - e.y, c.z + e.z),
+                new Vector3(c.x - e.x, c.y + e.y, c.z - e.z),
+                new Vector3(c.x - e.x, c.y + e.y, c.z + e.z),
+                new Vector3(c.x + e.x, c.y - e.y, c.z - e.z),
+                new Vector3(c.x + e.x, c.y - e.y, c.z + e.z),
+                new Vector3(c.x + e.x, c.y + e.y, c.z - e.z),
+                new Vector3(c.x + e.x, c.y + e.y, c.z + e.z)
+            };
+            for (int k = 0; k < corners.Length; k++)
+            {
+                var w = m.MultiplyPoint3x4(corners[k]);
+                if (!any) { b = new Bounds(w, Vector3.zero); any = true; }
+                else b.Encapsulate(w);
+            }
+        }
         return b;
     }
 
     static void ApplyMats(GameObject go, Dictionary<string, Material> mats)
     {
+        Material fallback;
+        mats.TryGetValue("HSGun_Metal", out fallback);
         foreach (var mr in go.GetComponentsInChildren<MeshRenderer>(true))
         {
             var shared = mr.sharedMaterials;
@@ -222,7 +267,7 @@ public static class HSPortalBuild
                 var key = shared[i] != null ? CleanName(shared[i].name) : "";
                 Material m;
                 if (mats.TryGetValue(key, out m)) shared[i] = m;
-                else Debug.LogWarning("[HSPortalBuild] No material for slot '" + key + "' on " + go.name);
+                else if (fallback != null) shared[i] = fallback;
             }
             mr.sharedMaterials = shared;
             mr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.On;
@@ -238,83 +283,173 @@ public static class HSPortalBuild
         return n.Trim();
     }
 
+    static Transform OrientForHold(GameObject go)
+    {
+        // FBX bake already maps Blender +Y barrel onto Unity -Z. HoldType 1 aims +Z,
+        // so yaw 180. Keep the Animator on Hold so clip paths still match the FBX root.
+        var hold = new GameObject("Hold");
+        hold.transform.SetParent(go.transform, false);
+        var kids = new List<Transform>();
+        foreach (Transform t in go.transform)
+        {
+            if (t != hold.transform) kids.Add(t);
+        }
+        for (int i = 0; i < kids.Count; i++)
+            kids[i].SetParent(hold.transform, true);
+        hold.transform.localRotation = Quaternion.Euler(0f, 180f, 0f);
+        hold.transform.localPosition = new Vector3(0.05f, -0.1f, 0.22f);
+        hold.transform.localScale = Vector3.one * 0.8f;
+        return hold.transform;
+    }
+
+    static void AttachViewProbe(GameObject host, Dictionary<string, Material> mats)
+    {
+        var sh = Shader.Find("HSPortal/View");
+        if (sh == null) return;
+        var path = Root + "/Materials/HSPortal_View.mat";
+        var m = AssetDatabase.LoadAssetAtPath<Material>(path);
+        if (m == null)
+        {
+            m = new Material(sh);
+            AssetDatabase.CreateAsset(m, path);
+        }
+        m.shader = sh;
+        if (m.HasProperty("_Color")) m.SetColor("_Color", Color.white);
+        EditorUtility.SetDirty(m);
+        mats["HSPortal_View"] = m;
+        var probe = GameObject.CreatePrimitive(PrimitiveType.Quad);
+        probe.name = "ViewProbe";
+        probe.transform.SetParent(host.transform, false);
+        probe.transform.localScale = Vector3.one * 0.001f;
+        probe.transform.localPosition = new Vector3(0f, 0f, -0.4f);
+        var col = probe.GetComponent<Collider>();
+        if (col != null) UnityEngine.Object.DestroyImmediate(col);
+        var mr = probe.GetComponent<MeshRenderer>();
+        if (mr != null)
+        {
+            mr.sharedMaterial = m;
+            mr.enabled = false;
+        }
+        probe.SetActive(false);
+        AssetImporter.GetAtPath(path).SetAssetBundleNameAndVariant(BundleName, "");
+        var shaderPath = Root + "/Shaders/HSPortalView.shader";
+        if (AssetDatabase.LoadAssetAtPath<Shader>(shaderPath) != null)
+            AssetImporter.GetAtPath(shaderPath).SetAssetBundleNameAndVariant(BundleName, "");
+    }
+
     static Dictionary<string, Material> EnsureMaterials()
     {
         var d = new Dictionary<string, Material>();
-        d["HSGun_Metal"] = Opaque("HSGun_Metal", new Color(0.28f, 0.27f, 0.24f), 0.55f, 0.28f);
-        d["HSGun_MetalDark"] = Opaque("HSGun_MetalDark", new Color(0.09f, 0.09f, 0.09f), 0.7f, 0.22f);
-        d["HSGun_MetalLight"] = Opaque("HSGun_MetalLight", new Color(0.48f, 0.47f, 0.43f), 0.65f, 0.4f);
-        d["HSGun_Grip"] = Opaque("HSGun_Grip", new Color(0.07f, 0.06f, 0.055f), 0f, 0.12f);
-        d["HSGun_Copper"] = Opaque("HSGun_Copper", new Color(0.62f, 0.32f, 0.12f), 0.85f, 0.45f);
-        d["HSGun_Gauge"] = Opaque("HSGun_Gauge", new Color(0.05f, 0.05f, 0.055f), 0.3f, 0.7f);
-        d["HSGun_Plate"] = Opaque("HSGun_Plate", new Color(0.38f, 0.34f, 0.2f), 0.2f, 0.25f);
-        d["HSGun_Hazard"] = Opaque("HSGun_Hazard", new Color(0.82f, 0.66f, 0.08f), 0.15f, 0.3f);
-        d["HSGun_GaugeFace"] = Opaque("HSGun_GaugeFace", new Color(0.85f, 0.75f, 0.52f), 0.15f, 0.65f);
-        d["HSGun_Glass"] = Glass("HSGun_Glass", new Color(0.55f, 0.78f, 0.95f, 0.28f));
-        d["HSGun_Blue"] = Emissive("HSGun_Blue", new Color(0.12f, 0.38f, 0.95f), new Color(0.25f, 0.7f, 1.8f));
-        d["HSGun_Orange"] = Emissive("HSGun_Orange", new Color(0.95f, 0.32f, 0.05f), new Color(1.8f, 0.45f, 0.05f));
-        d["HSGun_Glow"] = Emissive("HSGun_Glow", new Color(0.55f, 0.85f, 1f), new Color(0.8f, 1.4f, 2.2f));
+        d["HSGun_Metal"] = Unlit("HSGun_Metal", new Color(0.32f, 0.30f, 0.27f));
+        d["HSGun_MetalDark"] = Unlit("HSGun_MetalDark", new Color(0.12f, 0.12f, 0.12f));
+        d["HSGun_MetalLight"] = Unlit("HSGun_MetalLight", new Color(0.55f, 0.53f, 0.48f));
+        d["HSGun_Grip"] = Unlit("HSGun_Grip", new Color(0.09f, 0.08f, 0.07f));
+        d["HSGun_Copper"] = Unlit("HSGun_Copper", new Color(0.70f, 0.36f, 0.12f));
+        d["HSGun_Gauge"] = Unlit("HSGun_Gauge", new Color(0.08f, 0.08f, 0.09f));
+        d["HSGun_Plate"] = Unlit("HSGun_Plate", new Color(0.42f, 0.38f, 0.22f));
+        d["HSGun_Hazard"] = Unlit("HSGun_Hazard", new Color(0.85f, 0.68f, 0.08f));
+        d["HSGun_GaugeFace"] = Unlit("HSGun_GaugeFace", new Color(0.88f, 0.78f, 0.52f));
+        d["HSGun_Glass"] = Unlit("HSGun_Glass", new Color(0.45f, 0.70f, 0.95f, 0.35f));
+        d["HSGun_Blue"] = Unlit("HSGun_Blue", new Color(0.20f, 0.55f, 1f));
+        d["HSGun_Orange"] = Unlit("HSGun_Orange", new Color(1f, 0.40f, 0.06f));
+        d["HSGun_Glow"] = Unlit("HSGun_Glow", new Color(0.65f, 0.90f, 1f));
+        d["HSCube_Metal"] = Unlit("HSCube_Metal", new Color(0.32f, 0.30f, 0.27f));
+        d["HSCube_MetalDark"] = Unlit("HSCube_MetalDark", new Color(0.12f, 0.12f, 0.13f));
+        d["HSCube_Heart"] = Unlit("HSCube_Heart", new Color(0.78f, 0.16f, 0.22f));
+        d["HSCube_Stripe"] = Unlit("HSCube_Stripe", new Color(0.85f, 0.68f, 0.08f));
+        d["HSBoot_Leather"] = Unlit("HSBoot_Leather", new Color(0.22f, 0.13f, 0.08f));
+        d["HSBoot_Metal"] = Unlit("HSBoot_Metal", new Color(0.42f, 0.42f, 0.40f));
+        d["HSBoot_Orange"] = Unlit("HSBoot_Orange", new Color(0.95f, 0.45f, 0.08f));
+        d["HSBoot_Sole"] = Unlit("HSBoot_Sole", new Color(0.08f, 0.08f, 0.09f));
         AssetDatabase.SaveAssets();
         return d;
     }
 
-    static Material Load(string name)
+    static void MakePropPrefab(GameObject src, Dictionary<string, Material> mats, StringBuilder log)
+    {
+        var go = UnityEngine.Object.Instantiate(src);
+        go.name = src.name;
+        if (PrefabUtility.IsPartOfPrefabInstance(go))
+            PrefabUtility.UnpackPrefabInstance(go, PrefabUnpackMode.Completely, InteractionMode.AutomatedAction);
+        ApplyMats(go, mats);
+        var anims = go.GetComponentsInChildren<Animator>(true);
+        for (int i = 0; i < anims.Length; i++)
+            UnityEngine.Object.DestroyImmediate(anims[i]);
+        bool isGun = src.name.IndexOf("Gun", StringComparison.OrdinalIgnoreCase) >= 0;
+        bool isCube = src.name.IndexOf("Cube", StringComparison.OrdinalIgnoreCase) >= 0;
+        if (isGun)
+            OrientForHold(go);
+        if (isCube)
+        {
+            EnsureTag("T_Block");
+            go.tag = "T_Block";
+            go.layer = 16;
+            var cols = go.GetComponentsInChildren<Collider>(true);
+            for (int i = 0; i < cols.Length; i++)
+                UnityEngine.Object.DestroyImmediate(cols[i]);
+            var kill = new List<GameObject>();
+            foreach (var t in go.GetComponentsInChildren<Transform>(true))
+            {
+                t.gameObject.layer = 16;
+                if (t.name.StartsWith("COL_", StringComparison.OrdinalIgnoreCase))
+                    kill.Add(t.gameObject);
+            }
+            for (int i = 0; i < kill.Count; i++)
+                UnityEngine.Object.DestroyImmediate(kill[i]);
+            var bc = go.AddComponent<BoxCollider>();
+            bc.center = Vector3.zero;
+            bc.size = Vector3.one;
+        }
+        else
+        {
+            var cols = go.GetComponentsInChildren<Collider>(true);
+            for (int i = 0; i < cols.Length; i++)
+                UnityEngine.Object.DestroyImmediate(cols[i]);
+        }
+        var prefabPath = Root + "/Prefabs/" + src.name + ".prefab";
+        PrefabUtility.SaveAsPrefabAsset(go, prefabPath);
+        var b = RenderBounds(go);
+        UnityEngine.Object.DestroyImmediate(go);
+        AssetImporter.GetAtPath(prefabPath).SetAssetBundleNameAndVariant(BundleName, "");
+        log.AppendLine(string.Format("{0} bounds min {1} max {2}", src.name, V(b.min), V(b.max)));
+    }
+
+    static void EnsureTag(string tag)
+    {
+        var assets = AssetDatabase.LoadAllAssetsAtPath("ProjectSettings/TagManager.asset");
+        if (assets == null || assets.Length == 0) return;
+        var so = new SerializedObject(assets[0]);
+        var tags = so.FindProperty("tags");
+        for (int i = 0; i < tags.arraySize; i++)
+            if (tags.GetArrayElementAtIndex(i).stringValue == tag) return;
+        tags.InsertArrayElementAtIndex(tags.arraySize);
+        tags.GetArrayElementAtIndex(tags.arraySize - 1).stringValue = tag;
+        so.ApplyModifiedProperties();
+        AssetDatabase.SaveAssets();
+    }
+
+    static Shader UnlitShader()
+    {
+        var s = Shader.Find("Unlit/Color");
+        if (s == null) s = Shader.Find("Sprites/Default");
+        if (s == null) s = Shader.Find("Legacy Shaders/Diffuse");
+        if (s == null) s = Shader.Find("Standard");
+        return s;
+    }
+
+    static Material Unlit(string name, Color c)
     {
         var path = Root + "/Materials/" + name + ".mat";
         var m = AssetDatabase.LoadAssetAtPath<Material>(path);
+        var sh = UnlitShader();
         if (m == null)
         {
-            m = new Material(Shader.Find("Standard"));
+            m = new Material(sh);
             AssetDatabase.CreateAsset(m, path);
         }
-        m.shader = Shader.Find("Standard");
-        return m;
-    }
-
-    static Material Opaque(string name, Color c, float metallic, float smooth)
-    {
-        var m = Load(name);
-        m.SetFloat("_Mode", 0f);
-        m.SetOverrideTag("RenderType", "");
-        m.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.One);
-        m.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.Zero);
-        m.SetInt("_ZWrite", 1);
-        m.DisableKeyword("_ALPHATEST_ON");
-        m.DisableKeyword("_ALPHABLEND_ON");
-        m.DisableKeyword("_ALPHAPREMULTIPLY_ON");
-        m.renderQueue = -1;
-        m.color = c;
-        m.SetFloat("_Metallic", metallic);
-        m.SetFloat("_Glossiness", smooth);
-        EditorUtility.SetDirty(m);
-        return m;
-    }
-
-    static Material Emissive(string name, Color c, Color emit)
-    {
-        var m = Opaque(name, c, 0.2f, 0.55f);
-        m.EnableKeyword("_EMISSION");
-        m.SetColor("_EmissionColor", emit);
-        m.globalIlluminationFlags = MaterialGlobalIlluminationFlags.None;
-        EditorUtility.SetDirty(m);
-        return m;
-    }
-
-    static Material Glass(string name, Color c)
-    {
-        var m = Load(name);
-        m.SetFloat("_Mode", 3f);
-        m.SetOverrideTag("RenderType", "Transparent");
-        m.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.One);
-        m.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
-        m.SetInt("_ZWrite", 0);
-        m.DisableKeyword("_ALPHATEST_ON");
-        m.DisableKeyword("_ALPHABLEND_ON");
-        m.EnableKeyword("_ALPHAPREMULTIPLY_ON");
-        m.renderQueue = (int)UnityEngine.Rendering.RenderQueue.Transparent;
-        m.color = c;
-        m.SetFloat("_Metallic", 0.1f);
-        m.SetFloat("_Glossiness", 0.85f);
+        m.shader = sh;
+        if (m.HasProperty("_Color")) m.SetColor("_Color", c);
+        else m.color = c;
         EditorUtility.SetDirty(m);
         return m;
     }

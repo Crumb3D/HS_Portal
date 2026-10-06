@@ -114,6 +114,26 @@ public static class HSPortalMath
         return (x * x) / (hw * hw) + (y * y) / (hh * hh) <= 1f;
     }
 
+    public static Vector3i FaceRight(BlockFace face)
+    {
+        switch (face)
+        {
+            case BlockFace.East:
+            case BlockFace.West: return new Vector3i(0, 0, 1);
+            default: return new Vector3i(1, 0, 0);
+        }
+    }
+
+    public static Vector3i FaceUp(BlockFace face)
+    {
+        switch (face)
+        {
+            case BlockFace.Top:
+            case BlockFace.Bottom: return new Vector3i(0, 0, 1);
+            default: return new Vector3i(0, 1, 0);
+        }
+    }
+
     public static Vector3i WorldToCell(Vector3 p)
     {
         return new Vector3i(Mathf.FloorToInt(p.x), Mathf.FloorToInt(p.y), Mathf.FloorToInt(p.z));

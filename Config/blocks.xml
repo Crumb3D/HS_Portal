@@ -1,0 +1,35 @@
+<configs>
+	<append xpath="/blocks">
+
+		<block name="hsportalCube">
+			<property name="CreativeMode" value="Player"/>
+			<property name="DescriptionKey" value="hsportalCubeDesc"/>
+			<property name="UnlockedBy" value="craftingElectrician"/>
+			<property name="DisplayType" value="blockHardened"/>
+			<property name="CustomIcon" value="hsportalCube"/>
+			<property name="Material" value="Mmetal_medium"/>
+			<property name="Shape" value="ModelEntity"/>
+			<property name="Model" value="#@modfolder:Resources/HSPortal.unity3d?CompanionCube"/>
+			<property name="ModelOffset" value="0.5,0.5,0.5"/>
+			<property name="Place" value="TowardsPlacer"/>
+			<property name="Collide" value="movement,melee,bullet,arrow,rocket"/>
+			<property name="Path" value="solid"/>
+			<property name="CanPickup" value="true"/>
+			<property name="StabilitySupport" value="true"/>
+			<property name="EconomicValue" value="80"/>
+			<property name="MaxDamage" value="2500"/>
+			<property name="Weight" value="300"/>
+			<property class="RepairItems">
+				<property name="resourceForgedIron" value="4"/>
+			</property>
+			<drop event="Destroy" name="resourceScrapIron" count="4,8"/>
+			<drop event="Fall" name="scrapMetalPile" count="1" prob="0.5" stick_chance="1"/>
+			<property name="SortOrder1" value="B159"/>
+			<property name="SortOrder2" value="0100"/>
+			<property name="Group" value="Science,TCScience,Building"/>
+			<property name="Tags" value="electricianSkill"/>
+			<property name="FilterTags" value="MC_playerBlocks,SC_electrical"/>
+		</block>
+
+	</append>
+</configs>

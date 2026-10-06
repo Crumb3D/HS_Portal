@@ -17,6 +17,9 @@ _unity_build.log
 _unity/build_report.txt
 _icons_log.txt
 _export_log.txt
+_props_log.txt
+_props_icons_log.txt
+*_log.txt.meta
 *.log
 
 .codegpt-game.json

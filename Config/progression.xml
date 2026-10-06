@@ -1,8 +1,8 @@
 <configs>
 	<append xpath="/progression/crafting_skills/crafting_skill[@name='craftingElectrician']/display_entry[@unlock_level='25']">
-		<unlock_entry item="hsportalGun" unlock_tier="1"/>
+		<unlock_entry item="hsportalGun,hsportalGelGun,hsportalCube,hsportalBoots" unlock_tier="1"/>
 	</append>
 	<append xpath="/progression/crafting_skills/crafting_skill[@name='craftingElectrician']/effect_group">
-		<passive_effect name="RecipeTagUnlocked" operation="base_set" level="25,100" value="1" tags="hsportalGun"/>
+		<passive_effect name="RecipeTagUnlocked" operation="base_set" level="25,100" value="1" tags="hsportalGun,hsportalGelGun,hsportalCube,hsportalBoots"/>
 	</append>
 </configs>

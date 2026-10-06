@@ -14,5 +14,26 @@
 			<ingredient name="resourceScrapPolymers" count="8"/>
 		</recipe>
 
+		<recipe name="hsportalGelGun" count="1" craft_area="workbench" tags="perkAdvancedEngineering,learnable">
+			<ingredient name="resourceForgedSteel" count="8"/>
+			<ingredient name="resourceElectricParts" count="12"/>
+			<ingredient name="resourceMechanicalParts" count="6"/>
+			<ingredient name="resourcePaint" count="20"/>
+			<ingredient name="resourceScrapPolymers" count="10"/>
+		</recipe>
+
+		<recipe name="hsportalCube" count="1" craft_area="workbench" tags="perkAdvancedEngineering,learnable">
+			<ingredient name="resourceForgedIron" count="10"/>
+			<ingredient name="resourceMechanicalParts" count="4"/>
+			<ingredient name="resourceScrapPolymers" count="4"/>
+		</recipe>
+
+		<recipe name="hsportalBoots" count="1" craft_area="workbench" tags="perkAdvancedEngineering,learnable">
+			<ingredient name="resourceLeather" count="10"/>
+			<ingredient name="resourceForgedIron" count="6"/>
+			<ingredient name="resourceMechanicalParts" count="4"/>
+			<ingredient name="resourceScrapPolymers" count="6"/>
+		</recipe>
+
 	</append>
 </configs>

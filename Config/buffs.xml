@@ -1,0 +1,12 @@
+<configs>
+	<append xpath="/buffs">
+		<buff name="buffHSPortalLongFall" name_key="hsportalBoots" description_key="hsportalBootsDesc" hidden="true" icon="ui_game_symbol_agility">
+			<stack_type value="ignore"/>
+			<duration value="0"/>
+		</buff>
+	</append>
+	<append xpath="/buffs/buff[@name='buffStatusCheck01']/effect_group/triggered_effect[@trigger='onSelfFallImpact']">
+		<requirement name="!HasBuff" buff="buffHSPortalLongFall"/>
+		<requirement name="CVarCompare" cvar="$hsportalNoFall" operation="LTE" value="0"/>
+	</append>
+</configs>

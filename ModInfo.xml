@@ -2,8 +2,8 @@
 <xml>
   <Name value="HSPortal" />
   <DisplayName value="HS Portal" />
-  <Description value="Survival portal gun: place a blue and orange pair, walk through. Admin: hsportal" />
+  <Description value="Portal gun, gel gun (bounce / speed), weighted cube, long-fall boots. Admin: hsportal" />
   <Author value="Crumb" />
-  <Version value="0.2.1" />
+  <Version value="0.3.0" />
   <SkipWithAntiCheat value="true" />
 </xml>

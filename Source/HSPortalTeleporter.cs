@@ -201,5 +201,7 @@ public static class HSPortalFixedMovePatch
     {
         try { HSPortalTeleporter.ApplyPending(__instance); }
         catch (System.Exception e) { HSPortalDebug.Error("ApplyPending failed", e); }
+        try { HSPortalGel.BeforeMove(__instance); }
+        catch (System.Exception e) { HSPortalDebug.Error("Gel move failed", e); }
     }
 }

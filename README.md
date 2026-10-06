@@ -1,8 +1,8 @@
 # HS Portal
 
-Survival-styled portal gun for **7 Days to Die 3.2**. Place a blue portal and an orange portal, then walk through one to emerge from the other with facing and velocity transformed.
+Survival-styled portal gun, gel, weighted cube, and long-fall boots for **7 Days to Die 3.2**. Portal 2 is a behaviour reference only — no Valve meshes.
 
-The held gun is an original industrial 7DTD weapon (claws, blue/orange coils, DANGER pack) built from `portal Gun Design.png`. It is **not** a Portal 2 mesh. **Version 0.2.1.**
+The held gun is an original industrial 7DTD weapon (claws, blue/orange coils, DANGER pack) built from `portal Gun Design.png`. **Version 0.3.0.**
 
 License: [MIT](LICENSE). Author: Crumb.
 
@@ -24,30 +24,35 @@ Same gating as HS Doors / HS Lift / HS Escalator:
 
 1. Read **Wiring** magazines until **Electrician** reaches **25** (or spend the skill the magazines feed).
 2. Put perk points in **Advanced Engineering**.
-3. Craft **Portal Gun** at a **workbench**.
-
-Ingredients: forged steel, electric parts, mechanical parts, a motion sensor, pistol parts, scrap polymers.
+3. Craft at a **workbench**: Portal Gun, Gel Gun, Weighted Cube, Long-Fall Boots.
 
 The **Portal Handbook** (one paper) is always craftable and is not consumed when read.
 
-Creative menu still has the gun. Admin `hsportal give` bypasses the unlock.
+Creative menu still has everything. Admin `hsportal give` dumps the whole kit.
 
 ## Use
 
-Left click blue, right click orange. Firing plays the gun animation; a reject shake plays if the surface is illegal.
+**Portal gun** — left click blue, right click orange. Firing plays the gun animation; a reject shake plays if the surface is illegal. One portal is a static coloured opening. A linked pair teleports both ways and each opening shows the view through the other.
 
-One portal is a static coloured opening. Walking into it does nothing until the other colour is placed. Then the pair is linked both ways.
+**Gel gun** — left click blue repulsion gel: jump or land on it to bounce; bounce height follows how hard you came in. Right click orange propulsion gel: walking or running on it speeds you up.
 
-Valid surfaces for this milestone: full non-terrain cubes (walls, floors, ceilings). Terrain, plants, wedges, doors, and plates reject.
+**Long-fall boots** — feet slot. Ignore fall damage. Wear them before you bounce off high blue gel.
+
+**Weighted cube** — placeable scrap-steel crate with a heart stencil. E to pick up.
+
+Valid surfaces: full non-terrain cubes (walls, floors, ceilings). Terrain, plants, wedges, doors, and plates reject.
 
 Admin console (`hsportal`):
 
-- `hsportal give` — portal gun
-- `hsportal room` — concrete test chamber around you, then gives the gun
-- `hsportal blue` / `hsportal orange` — place that colour on the aimed surface
+- `hsportal give` — portal gun, gel gun, cube, boots
+- `hsportal room` — concrete test chamber around you, then gives the kit
+- `hsportal blue` / `hsportal orange` — place that portal colour on the aimed surface
+- `hsportal gel blue` / `hsportal gel orange` — spray gel on the aimed face
 - `hsportal clear` — remove your portals
 - `hsportal status`
 - `hsportal debug`
+
+On a dedicated server, type these in the in-game F1 console after you join (or `hsportal room YourName` from the server window).
 
 ## Rebuild assets
 

@@ -21,9 +21,10 @@ public class ConsoleCmdHSPortal : ConsoleCmdAbstract
         return
             "On a dedicated server, type these in the in-game F1 console after you join.\n" +
             "From the server window, add your player name: hsportal room YourName\n" +
-            "hsportal give [name]          - portal gun\n" +
-            "hsportal room [name]          - concrete chamber around you, then give the gun\n" +
-            "hsportal blue | orange        - place that colour on the aimed surface\n" +
+            "hsportal give [name]          - portal gun, gel gun, cube, long-fall boots\n" +
+            "hsportal room [name]          - concrete chamber around you, then give the kit\n" +
+            "hsportal blue | orange        - place that colour portal on the aimed surface\n" +
+            "hsportal gel blue|orange      - spray that gel on the aimed face\n" +
             "hsportal clear                - remove your portals\n" +
             "hsportal status | debug";
     }
@@ -35,6 +36,14 @@ public class ConsoleCmdHSPortal : ConsoleCmdAbstract
             var sub = _params != null && _params.Count > 0 ? _params[0].ToLowerInvariant() : "status";
             var who = _params != null && _params.Count > 1 ? _params[1] : "";
             var world = GameManager.Instance != null ? GameManager.Instance.World : null;
+            if (sub == "gel" && _params != null && _params.Count > 1)
+            {
+                var color = _params[1].ToLowerInvariant();
+                who = _params.Count > 2 ? _params[2] : "";
+                var gelPlayer = ResolvePlayer(world, _senderInfo, who);
+                Out(Gel(world, gelPlayer, color == "orange" || color == "o", who));
+                return;
+            }
             var player = ResolvePlayer(world, _senderInfo, who);
             Out(Run(sub, world, player, who));
         }
@@ -48,7 +57,7 @@ public class ConsoleCmdHSPortal : ConsoleCmdAbstract
     static EntityPlayer ResolvePlayer(World world, CommandSenderInfo sender, string name)
     {
         if (world == null) return null;
-        if (!string.IsNullOrEmpty(name) && name != "debug" && name != "blue" && name != "orange" && name != "clear" && name != "status" && name != "give" && name != "room")
+        if (!string.IsNullOrEmpty(name) && name != "debug" && name != "blue" && name != "orange" && name != "clear" && name != "status" && name != "give" && name != "room" && name != "gel")
         {
             var named = FindByName(world, name);
             if (named != null) return named;
@@ -148,11 +157,33 @@ public class ConsoleCmdHSPortal : ConsoleCmdAbstract
     static string Give(EntityPlayer player, string who)
     {
         if (player == null || player.inventory == null) return NeedPlayer(who);
-        var item = ItemClass.GetItem("hsportalGun", true);
-        if (item == null || item.ItemClass == null) return "hsportalGun is not loaded.";
-        var stack = new ItemStack(new ItemValue(item.type, true), 1);
-        if (!player.inventory.AddItem(stack)) return "Inventory full.";
-        return "Gave Portal Gun to " + player.EntityName + ".";
+        var names = new[] { "hsportalGun", "hsportalGelGun", "hsportalCube", "hsportalBoots" };
+        var got = new List<string>();
+        for (int i = 0; i < names.Length; i++)
+        {
+            var item = ItemClass.GetItem(names[i], true);
+            if (item == null || item.ItemClass == null) continue;
+            var stack = new ItemStack(new ItemValue(item.type, true), 1);
+            if (player.inventory.AddItem(stack)) got.Add(names[i]);
+        }
+        if (got.Count == 0) return "Could not give kit (missing items or inventory full).";
+        return "Gave " + string.Join(", ", got.ToArray()) + " to " + player.EntityName + ".";
+    }
+
+    static string Gel(World world, EntityPlayer player, bool orange, string who)
+    {
+        if (player == null || world == null) return NeedPlayer(who);
+        if (HSPortalNet.IsRemoteClient)
+        {
+            var local = player as EntityPlayerLocal;
+            if (local == null) return "Spray from your own F1 console.";
+            HSPortalNet.SendGelPaint(local, orange);
+            return "Requested " + (orange ? "orange" : "blue") + " gel.";
+        }
+        string fail;
+        if (!HSPortalGel.PaintLook(world, player, orange, out fail)) return fail ?? Localization.Get("hsportalGelDenied");
+        HSPortalNet.BroadcastGels();
+        return Localization.Get(orange ? "hsportalGelOrange" : "hsportalGelBlue");
     }
 
     static string BuildRoom(World world, EntityPlayer player, string who)
@@ -204,7 +235,7 @@ public class ConsoleCmdHSPortal : ConsoleCmdAbstract
             local.vp_FPController.SetPosition(stand - Origin.position);
         Give(player, who);
         HSPortalDebug.Info("Test room at " + new Vector3i(cx, fy, cz) + " block=" + block.GetBlockName() + " player=" + player.EntityName + " changes=" + changes.Count);
-        return "Built concrete test room for " + player.EntityName + " (" + changes.Count + " blocks) and gave the Portal Gun. Left click blue, right click orange.";
+        return "Built concrete test room for " + player.EntityName + " (" + changes.Count + " blocks) and gave the kit. Portal gun: left blue / right orange. Gel gun: left bounce / right speed.";
     }
 
     static Block FindCube()
