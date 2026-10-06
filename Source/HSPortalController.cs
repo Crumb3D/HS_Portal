@@ -1,8 +1,18 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 public class HSPortalController : MonoBehaviour
 {
     static HSPortalController instance;
+
+    class PendingShot
+    {
+        public EntityPlayerLocal player;
+        public bool orange;
+        public float at;
+    }
+
+    readonly List<PendingShot> pending = new List<PendingShot>();
 
     public static void EnsureCreated()
     {
@@ -12,8 +22,20 @@ public class HSPortalController : MonoBehaviour
         instance = go.AddComponent<HSPortalController>();
     }
 
+    public static void QueueShot(EntityPlayerLocal player, bool orange, float delay)
+    {
+        EnsureCreated();
+        instance.pending.Add(new PendingShot
+        {
+            player = player,
+            orange = orange,
+            at = Time.time + delay
+        });
+    }
+
     public static void OnWorldShuttingDown()
     {
+        if (instance != null) instance.pending.Clear();
         HSPortalVisual.DestroyAll();
     }
 
@@ -21,6 +43,14 @@ public class HSPortalController : MonoBehaviour
     {
         try
         {
+            for (int i = pending.Count - 1; i >= 0; i--)
+            {
+                var p = pending[i];
+                if (Time.time < p.at) continue;
+                pending.RemoveAt(i);
+                try { ItemActionHSPortalGun.Fire(p.player, p.orange); }
+                catch (System.Exception e) { HSPortalDebug.Error("Queued fire failed", e); }
+            }
             HSPortalWorld.Tick();
             HSPortalTeleporter.Tick();
         }

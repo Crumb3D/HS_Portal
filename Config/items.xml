@@ -1,21 +1,46 @@
 <configs>
 	<append xpath="/items">
 
+		<item name="hsportalHandbook">
+			<property name="Extends" value="blankNoteMaster"/>
+			<property name="CreativeMode" value="Player"/>
+			<property name="DescriptionKey" value="hsportalHandbookDesc"/>
+			<property name="CustomIcon" value="questMaster"/>
+			<property name="CustomIconTint" value="3d7eff"/>
+			<property name="NoScrapping" value="true"/>
+			<property name="Stacknumber" value="1"/>
+			<property name="EconomicValue" value="10"/>
+			<property name="SellableToTrader" value="false"/>
+			<property name="SoundPickup" value="map_grab"/>
+			<property name="SoundPlace" value="map_place"/>
+			<property name="Group" value="Science,TCScience"/>
+			<property name="FilterTags" value="MC_playerBlocks,SC_electrical"/>
+			<property class="Action0">
+				<property name="Class" value="Eat"/>
+				<property name="Consume" value="false"/>
+				<property name="Delay" value="0.5"/>
+				<property name="UseAnimation" value="false"/>
+				<property name="Sound_start" value="read_mod"/>
+				<property name="Sound_in_head" value="true"/>
+				<property name="PromptTitle" value="hsportalHandbook"/>
+				<property name="PromptDescription" value="hsportalHandbookText"/>
+			</property>
+		</item>
+
 		<item name="hsportalGun">
-			<property name="Tags" value="weapon,ranged,gun,noMods,holdBreathAiming"/>
+			<property name="Tags" value="weapon,ranged,gun,noMods,holdBreathAiming,electricianSkill"/>
 			<property name="CreativeMode" value="Player"/>
 			<property name="DisplayType" value="rangedGun"/>
 			<property name="HoldType" value="1"/>
-			<property name="Meshfile" value="@:Other/Items/Weapons/Ranged/Pistol/PistolPrefab.prefab"/>
+			<property name="Meshfile" value="#@modfolder:Resources/HSPortal.unity3d?PortalGun"/>
 			<property name="DropMeshfile" value="@:Other/Items/Misc/sack_droppedPrefab.prefab"/>
-			<property name="CustomIcon" value="gunHandgunT1Pistol"/>
-			<property name="CustomIconTint" value="3d7eff"/>
-			<property name="TintColor" value="61, 126, 255"/>
+			<property name="CustomIcon" value="hsportalGun"/>
 			<property name="Material" value="MHandGunParts"/>
 			<property name="DescriptionKey" value="hsportalGunDesc"/>
+			<property name="UnlockedBy" value="craftingElectrician"/>
 			<property name="Stacknumber" value="1"/>
 			<property name="DegradationBreaksAfter" value="false"/>
-			<property name="EconomicValue" value="0"/>
+			<property name="EconomicValue" value="500"/>
 			<property name="SellableToTrader" value="false"/>
 			<property name="SoundUnholster" value="weapon_unholster"/>
 			<property name="SoundHolster" value="weapon_holster"/>

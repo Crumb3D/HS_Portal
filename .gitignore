@@ -12,6 +12,11 @@ _unity/BundleOut/
 _unity/*.csproj
 _unity/*.sln
 _blender/__pycache__/
+_blender/*.blend1
+_unity_build.log
+_unity/build_report.txt
+_icons_log.txt
+_export_log.txt
 *.log
 
 .codegpt-game.json

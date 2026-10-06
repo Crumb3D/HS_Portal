@@ -8,7 +8,7 @@ public class HSPortalMod : IModApi
     public void InitMod(Mod _modInstance)
     {
         ModPath = _modInstance.Path;
-        HSPortalDebug.Info("Init v0.1.0; admin: hsportal give | room | blue | orange | clear");
+        HSPortalDebug.Info("Init v0.2.0; admin: hsportal give | room | blue | orange | clear");
         HSPortalNet.RegisterPackage();
         ModEvents.GameStartDone.RegisterHandler(OnGameStartDone);
         ModEvents.WorldShuttingDown.RegisterHandler(OnWorldShuttingDown);

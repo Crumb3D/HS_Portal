@@ -5,6 +5,8 @@ using UnityEngine.Scripting;
 [Preserve]
 public class ItemActionHSPortalGun : ItemAction
 {
+    public const float FireDelay = 0.13f;
+
     public override void ExecuteAction(ItemActionData _actionData, bool _bReleased)
     {
         if (_bReleased) return;
@@ -16,12 +18,49 @@ public class ItemActionHSPortalGun : ItemAction
             var player = _actionData.invData != null ? _actionData.invData.holdingEntity as EntityPlayerLocal : null;
             if (player == null) return;
             bool orange = _actionData.indexInEntityOfAction == 1;
-            Fire(player, orange);
+            PlayGunAnim(_actionData, "Fire");
+            PlayAvatarFire(player);
+            try { Audio.Manager.Play(player, "pistol_fire"); } catch { }
+            HSPortalController.QueueShot(player, orange, FireDelay);
         }
         catch (Exception e)
         {
             HSPortalDebug.Error("Portal gun fire failed", e);
         }
+    }
+
+    public static bool IsHolding(EntityPlayerLocal player)
+    {
+        if (player == null || player.inventory == null) return false;
+        var holding = player.inventory.holdingItem;
+        if (holding == null || holding.Actions == null) return false;
+        foreach (var a in holding.Actions)
+            if (a is ItemActionHSPortalGun) return true;
+        return false;
+    }
+
+    public static void PlayGunAnim(ItemActionData data, string trigger)
+    {
+        if (data == null) return;
+        PlayGunAnim(data.invData, trigger);
+    }
+
+    public static void PlayGunAnim(ItemInventoryData inv, string trigger)
+    {
+        if (inv == null || inv.model == null) return;
+        var anim = inv.model.GetComponentInChildren<Animator>();
+        if (anim == null) return;
+        anim.ResetTrigger("Fire");
+        anim.ResetTrigger("Reject");
+        anim.SetTrigger(trigger);
+    }
+
+    public static void PlayAvatarFire(EntityAlive player)
+    {
+        if (player == null || player.emodel == null) return;
+        var ac = player.emodel.avatarController;
+        if (ac == null) return;
+        ac.TriggerEvent(AvatarController.weaponFireHash);
     }
 
     public static void Fire(EntityPlayerLocal player, bool orange)
@@ -51,5 +90,7 @@ public class ItemActionHSPortalGun : ItemAction
         if (player == null) return;
         if (string.IsNullOrEmpty(msg)) msg = Localization.Get("hsportalDenied");
         GameManager.ShowTooltip(player, msg, "", "close");
+        if (IsHolding(player) && player.inventory != null)
+            PlayGunAnim(player.inventory.holdingItemData, "Reject");
     }
 }
