@@ -21,7 +21,7 @@ public class ConsoleCmdHSPortal : ConsoleCmdAbstract
         return
             "On a dedicated server, type these in the in-game F1 console after you join.\n" +
             "From the server window, add your player name: hsportal room YourName\n" +
-            "hsportal give [name]          - portal gun, gel gun, cube, long-fall boots\n" +
+            "hsportal give [name]          - portal gun, gel gun, 32 goo, cube, long-fall boots\n" +
             "hsportal room [name]          - concrete chamber around you, then give the kit\n" +
             "hsportal blue | orange        - place that colour portal on the aimed surface\n" +
             "hsportal gel blue|orange      - spray that gel on the aimed face\n" +
@@ -165,6 +165,12 @@ public class ConsoleCmdHSPortal : ConsoleCmdAbstract
             if (item == null || item.ItemClass == null) continue;
             var stack = new ItemStack(new ItemValue(item.type, true), 1);
             if (player.inventory.AddItem(stack)) got.Add(names[i]);
+        }
+        var goo = ItemClass.GetItem("hsportalGoo", true);
+        if (goo != null && goo.ItemClass != null)
+        {
+            var gooStack = new ItemStack(new ItemValue(goo.type, true), 32);
+            if (player.inventory.AddItem(gooStack)) got.Add("hsportalGoo x32");
         }
         if (got.Count == 0) return "Could not give kit (missing items or inventory full).";
         return "Gave " + string.Join(", ", got.ToArray()) + " to " + player.EntityName + ".";

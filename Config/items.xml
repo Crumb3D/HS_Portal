@@ -57,7 +57,7 @@
 		</item>
 
 		<item name="hsportalGelGun">
-			<property name="Tags" value="weapon,ranged,gun,noMods,holdBreathAiming,electricianSkill"/>
+			<property name="Tags" value="weapon,ranged,gun,noMods,holdBreathAiming,reloadPenalty,electricianSkill"/>
 			<property name="CreativeMode" value="Player"/>
 			<property name="DisplayType" value="rangedGun"/>
 			<property name="HoldType" value="1"/>
@@ -77,11 +77,55 @@
 			<property name="SoundPlace" value="pistol_place"/>
 			<property class="Action0">
 				<property name="Class" value="HSPortalGelGun, HSPortal"/>
+				<property name="Magazine_items" value="hsportalGoo"/>
+				<property name="Magazine_size" value="8"/>
+				<property name="Reload_time" value="2.2"/>
+				<property name="Sound_start" value="pistol_fire"/>
+				<property name="Sound_loop" value=""/>
+				<property name="Sound_end" value=""/>
+				<property name="Sound_empty" value="dryfire"/>
+				<property name="Sound_reload" value="pistol_reload"/>
+				<property name="AutoReload" value="false"/>
+				<property name="Show_ammo_force" value="true"/>
 			</property>
 			<property class="Action1">
 				<property name="Class" value="HSPortalGelGun, HSPortal"/>
+				<property name="Magazine_items" value="hsportalGoo"/>
+				<property name="Magazine_size" value="8"/>
+				<property name="Reload_time" value="2.2"/>
+				<property name="Sound_start" value="pistol_fire"/>
+				<property name="Sound_loop" value=""/>
+				<property name="Sound_end" value=""/>
+				<property name="Sound_empty" value="dryfire"/>
+				<property name="Sound_reload" value="pistol_reload"/>
+				<property name="AutoReload" value="false"/>
+				<property name="Show_ammo_force" value="true"/>
 			</property>
+			<effect_group name="hsportalGelGun" tiered="false">
+				<passive_effect name="MagazineSize" operation="base_set" value="8"/>
+				<passive_effect name="ModSlots" operation="base_set" value="0"/>
+			</effect_group>
 			<property name="Group" value="Ammo/Weapons,Ranged Weapons,Science,TCScience"/>
+			<property name="FilterTags" value="MC_playerBlocks,SC_electrical"/>
+		</item>
+
+		<item name="hsportalGoo">
+			<property name="Tags" value="ammo,hsportalGoo,electricianSkill,scrap100"/>
+			<property name="DisplayType" value="ammoBullet"/>
+			<property name="HoldType" value="45"/>
+			<property name="Meshfile" value="@:Other/Items/Misc/sackPrefab.prefab"/>
+			<property name="DropMeshfile" value="@:Other/Items/Misc/sack_droppedPrefab.prefab"/>
+			<property name="CustomIcon" value="hsportalGoo"/>
+			<property name="Material" value="Mpolymer"/>
+			<property name="DescriptionKey" value="hsportalGooDesc"/>
+			<property name="UnlockedBy" value="craftingElectrician"/>
+			<property name="Stacknumber" value="200"/>
+			<property name="EconomicValue" value="6"/>
+			<property name="SellableToTrader" value="false"/>
+			<property name="CreativeMode" value="Player"/>
+			<property name="SoundPickup" value="water_grab"/>
+			<property name="SoundPlace" value="water_place"/>
+			<property name="Group" value="Ammo/Weapons,Ammo,Science,TCScience"/>
 			<property name="FilterTags" value="MC_playerBlocks,SC_electrical"/>
 		</item>
 

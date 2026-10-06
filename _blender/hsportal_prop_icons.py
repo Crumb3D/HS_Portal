@@ -98,5 +98,6 @@ log = []
 render_one("CompanionCube", "hsportalCube.png", yaw=-48, pitch=28, dist_mul=1.22)
 render_one("GelGun", "hsportalGelGun.png", yaw=-42, pitch=18, dist_mul=1.28)
 render_one("LongFallBoots", "hsportalBoots.png", yaw=-50, pitch=25, dist_mul=1.3)
+render_one("GooCan", "hsportalGoo.png", yaw=-40, pitch=28, dist_mul=1.25)
 with open(os.path.join(OUT, "_props_icons_log.txt"), "w") as f:
     f.write("\n".join(log) + "\nDONE\n")

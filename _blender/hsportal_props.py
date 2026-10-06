@@ -166,6 +166,32 @@ def boot(parent, x):
     add_box(sole, (x, 0.08, 0.02), (0.1, 0.08, 0.03))
 
 
+def build_goo():
+    # Paint-can of mixed conversion slime — reads at HUD ammo size.
+    root = new_empty("GooCan", None)
+    body = new_mesh("GooCanBody", root, "HSGun_Metal")
+    add_cyl(body, (0, 0, 0.09), 0.07, 0.18, 20, "Z")
+    rim = new_mesh("GooCanRim", root, "HSGun_MetalDark")
+    add_cyl(rim, (0, 0, 0.18), 0.074, 0.024, 20, "Z")
+    add_cyl(rim, (0, 0, 0.02), 0.074, 0.024, 20, "Z")
+    stripe = new_mesh("GooCanStripe", root, "HSCube_Stripe")
+    add_box(stripe, (0, 0, 0.09), (0.148, 0.04, 0.03))
+    blue = new_mesh("GooLabelBlue", root, "HSGun_Blue")
+    add_box(blue, (-0.04, 0.068, 0.10), (0.055, 0.012, 0.09))
+    orange = new_mesh("GooLabelOrange", root, "HSGun_Orange")
+    add_box(orange, (0.04, 0.068, 0.10), (0.055, 0.012, 0.09))
+    slime = new_mesh("GooSlimeBlue", root, "HSGun_Blue")
+    add_cyl(slime, (-0.018, 0.0, 0.205), 0.042, 0.05, 14, "Z")
+    drip = new_mesh("GooSlimeOrange", root, "HSGun_Orange")
+    add_cyl(drip, (0.02, 0.01, 0.22), 0.032, 0.04, 12, "Z")
+    add_box(drip, (0.045, 0.0, 0.14), (0.035, 0.035, 0.10))
+    lid = new_mesh("GooHandle", root, "HSGun_MetalLight")
+    add_box(lid, (0.0, 0.0, 0.24), (0.018, 0.09, 0.018))
+    add_box(lid, (-0.04, 0.0, 0.22), (0.018, 0.018, 0.04))
+    add_box(lid, (0.04, 0.0, 0.22), (0.018, 0.018, 0.04))
+    return root
+
+
 def build_boots():
     root = new_empty("LongFallBoots", None)
     boot(root, -0.08)
@@ -209,23 +235,25 @@ def main():
     cube = build_cube()
     gun = build_gel_gun()
     boots = build_boots()
+    goo = build_goo()
     gun.location = (2.0, 0, 0)
     boots.location = (4.0, 0, 0)
+    goo.location = (6.0, 0, 0)
     bpy.context.view_layer.update()
-    ol, gl, bl = Vector(cube.location), Vector(gun.location), Vector(boots.location)
     cube.location = (0, 0, 0)
     gun.location = (0, 0, 0)
     boots.location = (0, 0, 0)
+    goo.location = (0, 0, 0)
     bpy.context.view_layer.update()
     export_fbx(cube, os.path.join(OUT_DIR, "CompanionCube.fbx"))
     export_fbx(gun, os.path.join(OUT_DIR, "GelGun.fbx"))
     export_fbx(boots, os.path.join(OUT_DIR, "LongFallBoots.fbx"))
-    cube.location = ol
     gun.location = (2.0, 0, 0)
     boots.location = (4.0, 0, 0)
+    goo.location = (6.0, 0, 0)
     bpy.ops.wm.save_as_mainfile(filepath=BLEND_OUT)
     with open(os.path.join(OUT_DIR, "_props_log.txt"), "w") as f:
-        f.write("CompanionCube GelGun LongFallBoots -> %s\nDONE\n" % OUT_DIR)
+        f.write("CompanionCube GelGun LongFallBoots GooCan -> %s\nDONE\n" % OUT_DIR)
 
 
 if __name__ == "__main__" or True:

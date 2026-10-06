@@ -2,7 +2,7 @@
 
 Survival-styled portal gun, gel, weighted cube, and long-fall boots for **7 Days to Die 3.2**. Portal 2 is a behaviour reference only — no Valve meshes.
 
-The held gun is an original industrial 7DTD weapon (claws, blue/orange coils, DANGER pack) built from `portal Gun Design.png`. **Version 0.3.0.**
+The held gun is an original industrial 7DTD weapon (claws, blue/orange coils, DANGER pack) built from `portal Gun Design.png`. **Version 0.3.1.**
 
 License: [MIT](LICENSE). Author: Crumb.
 
@@ -24,7 +24,7 @@ Same gating as HS Doors / HS Lift / HS Escalator:
 
 1. Read **Wiring** magazines until **Electrician** reaches **25** (or spend the skill the magazines feed).
 2. Put perk points in **Advanced Engineering**.
-3. Craft at a **workbench**: Portal Gun, Gel Gun, Weighted Cube, Long-Fall Boots.
+3. Craft at a **workbench**: Portal Gun, Gel Gun, **Goo ammo**, Weighted Cube, Long-Fall Boots.
 
 The **Portal Handbook** (one paper) is always craftable and is not consumed when read.
 
@@ -34,7 +34,7 @@ Creative menu still has everything. Admin `hsportal give` dumps the whole kit.
 
 **Portal gun** — left click blue, right click orange. Firing plays the gun animation; a reject shake plays if the surface is illegal. One portal is a static coloured opening. A linked pair teleports both ways and each opening shows the view through the other.
 
-**Gel gun** — left click blue repulsion gel: jump or land on it to bounce; bounce height follows how hard you came in. Right click orange propulsion gel: walking or running on it speeds you up.
+**Gel gun** — craft **Repulsion/Propulsion Goo** (paint, scrap polymers, acid) and reload with R. The ammo widget on the right of the HUD shows the magazine. Left click blue bounce gel, right click orange speed gel.
 
 **Long-fall boots** — feet slot. Ignore fall damage. Wear them before you bounce off high blue gel.
 
@@ -44,7 +44,7 @@ Valid surfaces: full non-terrain cubes (walls, floors, ceilings). Terrain, plant
 
 Admin console (`hsportal`):
 
-- `hsportal give` — portal gun, gel gun, cube, boots
+- `hsportal give` — portal gun, gel gun, 32 goo, cube, boots
 - `hsportal room` — concrete test chamber around you, then gives the kit
 - `hsportal blue` / `hsportal orange` — place that portal colour on the aimed surface
 - `hsportal gel blue` / `hsportal gel orange` — spray gel on the aimed face
