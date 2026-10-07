@@ -68,6 +68,28 @@ public static class HSPortalTint
         }
         if (hold == null) return;
         hold.localRotation = portal ? PortalHold : GelHold;
+        // Idle keys claws around EmitterHub +Y (Blender barrel). Hub keeps FBX Rx(90),
+        // so that +Y is Recoil +Z / world up after Hold. Identity puts Hub +Y on Recoil +Y
+        // which Hold maps to +Z — claws around the muzzle. Hub is not in the animator.
+        if (portal) AimEmitterHub(hold);
+    }
+
+    static void AimEmitterHub(Transform hold)
+    {
+        var hub = FindNamed(hold, "EmitterHub");
+        if (hub != null) hub.localRotation = Quaternion.identity;
+    }
+
+    static Transform FindNamed(Transform root, string name)
+    {
+        if (root == null) return null;
+        if (root.name == name) return root;
+        for (int i = 0; i < root.childCount; i++)
+        {
+            var found = FindNamed(root.GetChild(i), name);
+            if (found != null) return found;
+        }
+        return null;
     }
 
     static Shader Shader()

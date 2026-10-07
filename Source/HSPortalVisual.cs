@@ -200,12 +200,76 @@ public static class HSPortalVisual
             var p = world != null ? world.GetPrimaryPlayer() : null;
             if (p == null || p.emodel == null) return state;
             var sdcs = p.emodel as EModelSDCS;
+            EnsureLocalHead(p, sdcs);
             ForceShow(sdcs != null ? sdcs.baseRig : null, state);
             ForceShow(p.emodel.meshTransform != null ? p.emodel.meshTransform.gameObject : null, state);
             if (p.emodel.transform != null) EnableRenderers(p.emodel.transform, state);
         }
         catch { }
         return state;
+    }
+
+    // First-person SDCS never stitches a TP head (CreateVizTP skips setupBase when
+    // IsFPV). Portal cam looks at the world-space TP rig, so the body is headless.
+    // Rebuild TP once with IsFPV off (same CreateVizTP on 3.2 and 3.3), then keep
+    // those renderers disabled except while this camera renders.
+    static float nextHeadTry;
+
+    static void EnsureLocalHead(EntityPlayerLocal p, EModelSDCS sdcs)
+    {
+        if (p == null || sdcs == null || sdcs.baseRig == null) return;
+        if (HasHeadMesh(sdcs.baseRig)) return;
+        if (Time.unscaledTime < nextHeadTry) return;
+        nextHeadTry = Time.unscaledTime + 8f;
+        var arch = sdcs.Archetype;
+        if (arch == null) return;
+        var rig = sdcs.baseRig;
+        var catalog = sdcs.boneCatalog;
+        bool fpv = sdcs.IsFPV;
+        try
+        {
+            sdcs.IsFPV = false;
+            SDCSUtils.CreateVizTP(arch, ref rig, ref catalog, p, false);
+            sdcs.baseRig = rig;
+            sdcs.boneCatalog = catalog;
+            if (rig != null)
+            {
+                DisableRenderers(rig.transform);
+                int layer = p.GetModelLayer();
+                p.SetModelLayer(layer, true);
+            }
+            if (HasHeadMesh(sdcs.baseRig)) nextHeadTry = 0f;
+        }
+        catch (Exception e)
+        {
+            HSPortalDebug.Error("TP head for portal view failed", e);
+        }
+        finally
+        {
+            sdcs.IsFPV = fpv;
+        }
+    }
+
+    static bool HasHeadMesh(GameObject rig)
+    {
+        if (rig == null) return false;
+        var rs = rig.GetComponentsInChildren<Renderer>(true);
+        for (int i = 0; i < rs.Length; i++)
+        {
+            if (rs[i] == null) continue;
+            var n = rs[i].gameObject.name;
+            if (n.IndexOf("_Head", StringComparison.OrdinalIgnoreCase) >= 0) return true;
+            if (n.Equals("head", StringComparison.OrdinalIgnoreCase)) return true;
+        }
+        return false;
+    }
+
+    static void DisableRenderers(Transform root)
+    {
+        if (root == null) return;
+        var rs = root.GetComponentsInChildren<Renderer>(true);
+        for (int i = 0; i < rs.Length; i++)
+            if (rs[i] != null) rs[i].enabled = false;
     }
 
     static void ForceShow(GameObject go, BodyShow state)
