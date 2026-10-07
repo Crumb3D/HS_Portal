@@ -1,0 +1,23 @@
+<configs>
+	<append xpath="/windows">
+
+		<window name="HUDHSPortal" pos="0,-56" width="220" height="72" anchor="CenterTop" depth="-18" controller="HSPortalHud, HSPortal">
+			<rect width="220" height="72" visible="{hudvisible}">
+				<sprite depth="1" pos="0,0" width="220" height="56" sprite="menu_empty" color="0,0,0,130" type="sliced"/>
+				<sprite depth="2" pos="0,0" width="220" height="56" sprite="menu_empty3px" color="0,0,0,220" type="sliced" fillcenter="false"/>
+
+				<sprite depth="3" pos="14,-6" width="32" height="42" sprite="menu_empty" color="{bluecolor}" type="sliced"/>
+				<label depth="4" pos="4,-48" width="52" height="16" font_size="13" justify="center" color="{bluecolor}" text="{bluetext}"/>
+
+				<sprite depth="3" pos="86,-24" width="48" height="8" sprite="menu_empty" color="{linkcolor}" type="sliced"/>
+				<label depth="4" pos="70,-10" width="80" height="16" font_size="12" justify="center" color="{linkcolor}" text="{linktext}"/>
+
+				<sprite depth="3" pos="174,-6" width="32" height="42" sprite="menu_empty" color="{orangecolor}" type="sliced"/>
+				<label depth="4" pos="164,-48" width="52" height="16" font_size="13" justify="center" color="{orangecolor}" text="{orangetext}"/>
+
+				<label depth="5" pos="10,-58" width="200" height="14" font_size="12" justify="center" color="200,200,200,170" text="{hinttext}"/>
+			</rect>
+		</window>
+
+	</append>
+</configs>

@@ -4,9 +4,6 @@ using UnityEngine;
 
 public static class HSPortalPlacement
 {
-    const float SlideStep = 0.08f;
-    const float SlideMax = 0.9f;
-    const float Sample = 0.22f;
 
     public static bool TryPlace(World world, EntityPlayer player, bool orange, out string fail)
     {
@@ -34,7 +31,8 @@ public static class HSPortalPlacement
         portal = null;
         fail = Localization.Get("hsportalDenied");
         if (world == null || ray.direction.sqrMagnitude < 0.0001f) return false;
-        if (!Voxel.Raycast(world, ray, HSPortalMath.PlaceRange, false, false)) return false;
+        var shot = new Ray(ray.origin - ray.direction * 0.12f, ray.direction);
+        if (!Voxel.Raycast(world, shot, HSPortalMath.PlaceRange, false, false)) return false;
         var hit = Voxel.voxelRayHitInfo;
         if (hit == null || !hit.bHitValid) return false;
         return TryBuildAt(world, ownerId, ray.direction, orange, hit, out portal, out fail);
@@ -45,20 +43,56 @@ public static class HSPortalPlacement
         portal = null;
         fail = Localization.Get("hsportalDenied");
         if (world == null || hit == null || !hit.bHitValid) return false;
-        var face = hit.hit.blockFace;
+        Vector3i hitCell;
+        BlockFace face;
+        Vector3 hitPos;
+        if (!ResolveHit(world, hit, out hitCell, out face, out hitPos))
+        {
+            Spark(hit.hit.pos, orange);
+            return false;
+        }
         var n = HSPortalMath.FaceNormal(face);
-        if (n.sqrMagnitude < 0.5f) return false;
-        if (look.sqrMagnitude < 0.0001f) look = n;
-        var up = HSPortalMath.PortalUp(n, look);
-        var planePt = HSPortalMath.FaceCenter(hit.hit.blockPos, face);
-        var seed = HSPortalMath.ProjectOnPlane(hit.hit.pos, planePt, n);
-        Vector3 center;
-        Vector3i[] cells;
-        if (!Fit(world, seed, n, up, face, out center, out cells)) return false;
-        center = center + n * HSPortalMath.SurfaceOffset;
+        if (n.sqrMagnitude < 0.5f)
+        {
+            Spark(hitPos, orange);
+            return false;
+        }
+        if (IsMetal(world, hitCell))
+        {
+            fail = Localization.Get("hsportalDeniedMetal");
+            Spark(hitPos, orange);
+            return false;
+        }
+        Vector3i a, b;
+        if (!SnapTwoBlocks(world, hitCell, face, hitPos, out a, out b))
+        {
+            fail = Localization.Get("hsportalDeniedSpace");
+            Spark(hitPos, orange);
+            return false;
+        }
+        var cA = HSPortalMath.FaceCenter(a, face);
+        var cB = HSPortalMath.FaceCenter(b, face);
+        var center = (cA + cB) * 0.5f + n * HSPortalMath.SurfaceOffset;
+        var up = cB - cA;
+        if (Mathf.Abs(n.y) < 0.55f)
+        {
+            if (up.y < 0f) up = -up;
+            if (up.sqrMagnitude < 0.0001f) up = Vector3.up;
+        }
+        else
+        {
+            var alongLook = Vector3.ProjectOnPlane(look, n);
+            if (up.sqrMagnitude < 0.0001f || Vector3.Dot(up, alongLook) < 0f)
+                up = alongLook.sqrMagnitude > 0.0001f ? alongLook : HSPortalMath.PortalUp(n, look);
+        }
+        up.Normalize();
 
         var other = Other(ownerId, orange);
-        if (other != null && Overlaps(center, n, other)) return false;
+        if (other != null && Overlaps(center, n, other))
+        {
+            Spark(hitPos, orange);
+            return false;
+        }
 
         portal = new HSPortal();
         portal.OwnerId = ownerId;
@@ -66,10 +100,10 @@ public static class HSPortalPlacement
         portal.Center = center;
         portal.Normal = n;
         portal.Up = up;
-        portal.HalfWidth = HSPortalMath.HalfWidth;
-        portal.HalfHeight = HSPortalMath.HalfHeight;
+        portal.HalfWidth = 0.48f;
+        portal.HalfHeight = 0.98f;
         portal.Face = face;
-        portal.Cells = cells;
+        portal.Cells = new[] { a, b };
         portal.FinishAxes();
         fail = null;
         return true;
@@ -90,71 +124,134 @@ public static class HSPortalPlacement
         return d.sqrMagnitude < 1.6f;
     }
 
-    static bool Fit(World world, Vector3 seed, Vector3 n, Vector3 up, BlockFace face, out Vector3 center, out Vector3i[] cells)
+    static bool ResolveHit(World world, WorldRayHitInfo hit, out Vector3i cell, out BlockFace face, out Vector3 pos)
     {
-        center = seed;
-        cells = null;
-        var rot = HSPortalMath.PortalRotation(n, up);
-        var right = rot * Vector3.right;
-        var u = rot * Vector3.up;
-        Vector3i[] best = null;
-        Vector3 bestC = seed;
-        float bestDist = float.MaxValue;
-        for (float sx = -SlideMax; sx <= SlideMax + 0.001f; sx += SlideStep)
+        cell = hit.hit.blockPos;
+        face = hit.hit.blockFace;
+        pos = hit.hit.pos;
+        var mid = new Vector3(cell.x + 0.5f, cell.y + 0.5f, cell.z + 0.5f);
+        if ((pos - mid).sqrMagnitude > 16f)
+            pos = pos + Origin.position;
+        if (face == BlockFace.None || face == BlockFace.Middle || HSPortalMath.FaceNormal(face).sqrMagnitude < 0.5f)
+            face = DominantFace(cell, pos);
+        if (!IsPortalSurface(world, cell, face))
         {
-            for (float sy = -SlideMax; sy <= SlideMax + 0.001f; sy += SlideStep)
+            var inside = pos - HSPortalMath.FaceNormal(face) * 0.08f;
+            cell = HSPortalMath.WorldToCell(inside);
+            if (face == BlockFace.None || face == BlockFace.Middle)
+                face = DominantFace(cell, pos);
+        }
+        return IsPortalSurface(world, cell, face) || IsMetal(world, cell);
+    }
+
+    static BlockFace DominantFace(Vector3i cell, Vector3 worldPos)
+    {
+        var local = worldPos - new Vector3(cell.x + 0.5f, cell.y + 0.5f, cell.z + 0.5f);
+        float ax = Mathf.Abs(local.x);
+        float ay = Mathf.Abs(local.y);
+        float az = Mathf.Abs(local.z);
+        if (ay >= ax && ay >= az)
+            return local.y >= 0f ? BlockFace.Top : BlockFace.Bottom;
+        if (ax >= az)
+            return local.x >= 0f ? BlockFace.East : BlockFace.West;
+        return local.z >= 0f ? BlockFace.North : BlockFace.South;
+    }
+
+    static bool SnapTwoBlocks(World world, Vector3i hit, BlockFace face, Vector3 hitPos, out Vector3i a, out Vector3i b)
+    {
+        a = hit;
+        b = hit;
+        if (!IsPortalSurface(world, hit, face)) return false;
+        var n = HSPortalMath.FaceNormal(face);
+        bool wall = Mathf.Abs(n.y) < 0.55f;
+        Vector3i best = hit;
+        float bestScore = -9999f;
+        bool found = false;
+        Vector3i[] steps;
+        if (wall)
+            steps = new[] { new Vector3i(0, 1, 0), new Vector3i(0, -1, 0) };
+        else
+            steps = new[] { new Vector3i(1, 0, 0), new Vector3i(-1, 0, 0), new Vector3i(0, 0, 1), new Vector3i(0, 0, -1) };
+        var mid = new Vector3(hit.x + 0.5f, hit.y + 0.5f, hit.z + 0.5f);
+        var local = hitPos - mid;
+        local -= n * Vector3.Dot(local, n);
+        for (int i = 0; i < steps.Length; i++)
+        {
+            var s = steps[i];
+            if (Mathf.Abs(Vector3.Dot(n, new Vector3(s.x, s.y, s.z))) > 0.5f) continue;
+            var nb = new Vector3i(hit.x + s.x, hit.y + s.y, hit.z + s.z);
+            if (!IsPortalSurface(world, nb, face)) continue;
+            float score = Vector3.Dot(local, new Vector3(s.x, s.y, s.z));
+            if (wall && s.y > 0) score += 0.15f;
+            if (!found || score > bestScore)
             {
-                var c = seed + right * sx + u * sy;
-                Vector3i[] found;
-                if (!Covered(world, c, n, right, u, face, out found)) continue;
-                float dist = (c - seed).sqrMagnitude;
-                if (dist < bestDist)
+                found = true;
+                bestScore = score;
+                best = nb;
+            }
+        }
+        if (!found) return false;
+        b = best;
+        return true;
+    }
+
+    public static void Spark(Vector3 worldPos, bool orange)
+    {
+        try
+        {
+            var col = orange ? new Color(1f, 0.42f, 0.06f, 1f) : new Color(0.2f, 0.55f, 1f, 1f);
+            var names = new[] { "nozzleflash", "nozzleflashuzi", "p_sparks_fuse", "spark" };
+            for (int i = 0; i < names.Length; i++)
+            {
+                try
                 {
-                    bestDist = dist;
-                    best = found;
-                    bestC = c;
-                    if (dist < 0.0001f)
+                    var pe = new ParticleEffect(names[i], worldPos, Quaternion.identity, 1f, col);
+                    if (GameManager.IsDedicatedServer)
                     {
-                        center = bestC;
-                        cells = best;
-                        return true;
+                        if (GameManager.Instance != null)
+                            GameManager.Instance.SpawnParticleEffectServer(pe, -1);
                     }
+                    else
+                        ParticleEffect.SpawnParticleEffect(pe, -1, true, true);
+                    break;
                 }
+                catch { }
             }
+            try { Audio.Manager.BroadcastPlay(worldPos, "electric_fence_impact"); } catch { }
         }
-        if (best == null) return false;
-        center = bestC;
-        cells = best;
-        return true;
-    }
-
-    static bool Covered(World world, Vector3 center, Vector3 n, Vector3 right, Vector3 up, BlockFace face, out Vector3i[] cells)
-    {
-        cells = null;
-        var set = new List<Vector3i>();
-        float hw = HSPortalMath.HalfWidth;
-        float hh = HSPortalMath.HalfHeight;
-        for (float x = -hw; x <= hw + 0.001f; x += Sample)
+        catch (Exception e)
         {
-            for (float y = -hh; y <= hh + 0.001f; y += Sample)
-            {
-                if ((x * x) / (hw * hw) + (y * y) / (hh * hh) > 1.02f) continue;
-                var pt = center + right * x + up * y;
-                var inside = pt - n * 0.08f;
-                var cell = HSPortalMath.WorldToCell(inside);
-                if (!Contains(set, cell)) set.Add(cell);
-                if (!IsLegalFace(world, cell, face)) return false;
-            }
+            HSPortalDebug.Verbose("Spark failed: " + e.Message);
         }
-        if (set.Count == 0) return false;
-        cells = set.ToArray();
-        return true;
     }
 
-    static bool Contains(List<Vector3i> list, Vector3i v)
+    public static bool IsPortalSurface(World world, Vector3i cell, BlockFace face)
     {
-        for (int i = 0; i < list.Count; i++)
-            if (list[i].x == v.x && list[i].y == v.y && list[i].z == v.z) return true;
+        if (!IsLegalFace(world, cell, face)) return false;
+        return !IsMetal(world, cell);
+    }
+
+    static bool IsMetal(World world, Vector3i cell)
+    {
+        if (world == null) return false;
+        var bv = world.GetBlock(cell);
+        if (bv.isair || bv.Block == null) return false;
+        var mat = bv.Block.blockMaterial;
+        if (mat == null) return false;
+        return IsMetalId(mat.id) || IsMetalId(mat.SurfaceCategory) || IsMetalId(mat.ForgeCategory) || IsMetalId(mat.DamageCategory);
+    }
+
+    static bool IsMetalId(string id)
+    {
+        if (string.IsNullOrEmpty(id)) return false;
+        var s = id.ToLowerInvariant();
+        if (s.IndexOf("wood", StringComparison.Ordinal) >= 0) return false;
+        if (s.IndexOf("metal", StringComparison.Ordinal) >= 0) return true;
+        if (s.IndexOf("steel", StringComparison.Ordinal) >= 0) return true;
+        if (s.IndexOf("iron", StringComparison.Ordinal) >= 0) return true;
+        if (s.IndexOf("brass", StringComparison.Ordinal) >= 0) return true;
+        if (s == "lead" || s.IndexOf("lead_", StringComparison.Ordinal) >= 0) return true;
+        if (s.IndexOf("stainless", StringComparison.Ordinal) >= 0) return true;
         return false;
     }
 

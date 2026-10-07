@@ -8,6 +8,18 @@ using UnityEngine;
 
 public class HSPortalModelImport : AssetPostprocessor
 {
+    void OnPreprocessTexture()
+    {
+        if (!assetPath.Replace('\\', '/').Contains("/HSPortal/Textures/")) return;
+        var ti = (TextureImporter)assetImporter;
+        ti.wrapMode = TextureWrapMode.Clamp;
+        ti.mipmapEnabled = true;
+        ti.sRGBTexture = assetPath.IndexOf("Displacement", StringComparison.OrdinalIgnoreCase) < 0;
+        ti.filterMode = FilterMode.Bilinear;
+        ti.textureType = TextureImporterType.Default;
+        ti.maxTextureSize = 2048;
+    }
+
     void OnPreprocessModel()
     {
         if (!assetPath.Replace('\\', '/').Contains("/HSPortal/Models/")) return;
@@ -74,6 +86,20 @@ public static class HSPortalBuild
             EnsureFolder(Root + "/Materials");
             EnsureFolder(Root + "/Prefabs");
             EnsureFolder(Root + "/Anim");
+            EnsureFolder(Root + "/Textures");
+            EnsureFolder(Root + "/Shaders");
+            AssetDatabase.Refresh(ImportAssetOptions.ForceUpdate);
+            AssetDatabase.ImportAsset(Root + "/Shaders/HSPortalUnlit.shader", ImportAssetOptions.ForceUpdate);
+            foreach (var shPath in new[]
+            {
+                Root + "/Shaders/HSPortalCube.shader",
+                Root + "/Shaders/HSPortalView.shader",
+                Root + "/Shaders/HSPortalUnlit.shader"
+            })
+            {
+                if (AssetDatabase.LoadAssetAtPath<Shader>(shPath) != null)
+                    AssetImporter.GetAtPath(shPath).SetAssetBundleNameAndVariant(BundleName, "");
+            }
             var mats = EnsureMaterials();
             AssetDatabase.Refresh(ImportAssetOptions.ForceUpdate);
 
@@ -131,7 +157,7 @@ public static class HSPortalBuild
             var anims = go.GetComponentsInChildren<Animator>(true);
             for (int i = 0; i < anims.Length; i++)
                 UnityEngine.Object.DestroyImmediate(anims[i]);
-            var hold = OrientForHold(go);
+            var hold = OrientForHold(go, true);
             AttachViewProbe(hold != null ? hold.gameObject : go, mats);
             var animatorHost = hold != null ? hold.gameObject : go;
             var animator = animatorHost.AddComponent<Animator>();
@@ -283,23 +309,27 @@ public static class HSPortalBuild
         return n.Trim();
     }
 
-    static Transform OrientForHold(GameObject go)
+    static Transform OrientForHold(GameObject go, bool barrelAlongY)
     {
-        // FBX bake already maps Blender +Y barrel onto Unity -Z. HoldType 1 aims +Z,
-        // so yaw 180. Keep the Animator on Hold so clip paths still match the FBX root.
+        // Portal gun Idle writes Blender identity (barrel +Y) — pitch 90 onto HoldType 1 +Z.
+        // Gel gun verts are already Z-forward; only yaw 180.
         var hold = new GameObject("Hold");
         hold.transform.SetParent(go.transform, false);
+        var anim = new GameObject("Anim");
+        anim.transform.SetParent(hold.transform, false);
         var kids = new List<Transform>();
         foreach (Transform t in go.transform)
         {
             if (t != hold.transform) kids.Add(t);
         }
         for (int i = 0; i < kids.Count; i++)
-            kids[i].SetParent(hold.transform, true);
-        hold.transform.localRotation = Quaternion.Euler(0f, 180f, 0f);
+            kids[i].SetParent(anim.transform, true);
+        hold.transform.localRotation = barrelAlongY
+            ? Quaternion.Euler(-90f, 180f, 0f)
+            : Quaternion.Euler(0f, 180f, 0f);
         hold.transform.localPosition = new Vector3(0.05f, -0.1f, 0.22f);
         hold.transform.localScale = Vector3.one * 0.8f;
-        return hold.transform;
+        return anim.transform;
     }
 
     static void AttachViewProbe(GameObject host, Dictionary<string, Material> mats)
@@ -335,10 +365,52 @@ public static class HSPortalBuild
         var shaderPath = Root + "/Shaders/HSPortalView.shader";
         if (AssetDatabase.LoadAssetAtPath<Shader>(shaderPath) != null)
             AssetImporter.GetAtPath(shaderPath).SetAssetBundleNameAndVariant(BundleName, "");
+        var cubeShader = Root + "/Shaders/HSPortalCube.shader";
+        if (AssetDatabase.LoadAssetAtPath<Shader>(cubeShader) != null)
+            AssetImporter.GetAtPath(cubeShader).SetAssetBundleNameAndVariant(BundleName, "");
+    }
+
+    static Material CubeLit()
+    {
+        var path = Root + "/Materials/HSCube_Body.mat";
+        var sh = Shader.Find("Standard");
+        if (sh == null) sh = Shader.Find("HSPortal/Cube");
+        if (sh == null) sh = UnlitShader();
+        var m = AssetDatabase.LoadAssetAtPath<Material>(path);
+        if (m == null)
+        {
+            m = new Material(sh);
+            AssetDatabase.CreateAsset(m, path);
+        }
+        m.shader = sh;
+        var diff = AssetDatabase.LoadAssetAtPath<Texture2D>(Root + "/Textures/Cube_Diffuse.jpg");
+        var glow = AssetDatabase.LoadAssetAtPath<Texture2D>(Root + "/Textures/Cube_Glow.jpg");
+        if (m.HasProperty("_MainTex") && diff != null) m.SetTexture("_MainTex", diff);
+        if (m.HasProperty("_Color")) m.SetColor("_Color", new Color(0.82f, 0.82f, 0.84f, 1f));
+        if (m.HasProperty("_Metallic")) m.SetFloat("_Metallic", 0.28f);
+        if (m.HasProperty("_Glossiness")) m.SetFloat("_Glossiness", 0.32f);
+        if (glow != null && m.HasProperty("_EmissionMap"))
+        {
+            m.EnableKeyword("_EMISSION");
+            m.SetTexture("_EmissionMap", glow);
+            m.SetColor("_EmissionColor", new Color(0.75f, 0.2f, 0.5f) * 0.55f);
+        }
+        if (m.HasProperty("_EmissionTex") && glow != null) m.SetTexture("_EmissionTex", glow);
+        if (m.HasProperty("_EmissionStrength")) m.SetFloat("_EmissionStrength", 0.85f);
+        EditorUtility.SetDirty(m);
+        AssetImporter.GetAtPath(path).SetAssetBundleNameAndVariant(BundleName, "");
+        foreach (var texPath in new[] { Root + "/Textures/Cube_Diffuse.jpg", Root + "/Textures/Cube_Glow.jpg" })
+        {
+            if (AssetDatabase.LoadAssetAtPath<Texture2D>(texPath) != null)
+                AssetImporter.GetAtPath(texPath).SetAssetBundleNameAndVariant(BundleName, "");
+        }
+        return m;
     }
 
     static Dictionary<string, Material> EnsureMaterials()
     {
+        var unlit = Shader.Find("HSPortal/UnlitColor");
+        if (unlit == null) Debug.LogWarning("[HSPortalBuild] HSPortal/UnlitColor missing — gun will be white in-game");
         var d = new Dictionary<string, Material>();
         d["HSGun_Metal"] = Unlit("HSGun_Metal", new Color(0.32f, 0.30f, 0.27f));
         d["HSGun_MetalDark"] = Unlit("HSGun_MetalDark", new Color(0.12f, 0.12f, 0.12f));
@@ -357,6 +429,7 @@ public static class HSPortalBuild
         d["HSCube_MetalDark"] = Unlit("HSCube_MetalDark", new Color(0.12f, 0.12f, 0.13f));
         d["HSCube_Heart"] = Unlit("HSCube_Heart", new Color(0.78f, 0.16f, 0.22f));
         d["HSCube_Stripe"] = Unlit("HSCube_Stripe", new Color(0.85f, 0.68f, 0.08f));
+        d["HSCube_Body"] = CubeLit();
         d["HSBoot_Leather"] = Unlit("HSBoot_Leather", new Color(0.22f, 0.13f, 0.08f));
         d["HSBoot_Metal"] = Unlit("HSBoot_Metal", new Color(0.42f, 0.42f, 0.40f));
         d["HSBoot_Orange"] = Unlit("HSBoot_Orange", new Color(0.95f, 0.45f, 0.08f));
@@ -378,7 +451,7 @@ public static class HSPortalBuild
         bool isGun = src.name.IndexOf("Gun", StringComparison.OrdinalIgnoreCase) >= 0;
         bool isCube = src.name.IndexOf("Cube", StringComparison.OrdinalIgnoreCase) >= 0;
         if (isGun)
-            OrientForHold(go);
+            OrientForHold(go, false);
         if (isCube)
         {
             EnsureTag("T_Block");
@@ -396,8 +469,12 @@ public static class HSPortalBuild
             }
             for (int i = 0; i < kill.Count; i++)
                 UnityEngine.Object.DestroyImmediate(kill[i]);
+            // 7DTD ModelEntity sits on the block corner. Mesh is centered, so
+            // shift it into the 0..1 cell and keep ModelOffset at 0,0,0.
+            foreach (Transform t in go.transform)
+                t.localPosition += new Vector3(0.5f, 0.5f, 0.5f);
             var bc = go.AddComponent<BoxCollider>();
-            bc.center = Vector3.zero;
+            bc.center = new Vector3(0.5f, 0.5f, 0.5f);
             bc.size = Vector3.one;
         }
         else
@@ -409,6 +486,11 @@ public static class HSPortalBuild
         var prefabPath = Root + "/Prefabs/" + src.name + ".prefab";
         PrefabUtility.SaveAsPrefabAsset(go, prefabPath);
         var b = RenderBounds(go);
+        if (src.name.IndexOf("Boot", StringComparison.OrdinalIgnoreCase) >= 0)
+        {
+            foreach (var t in go.GetComponentsInChildren<Transform>(true))
+                log.AppendLine("  boot node " + t.name);
+        }
         UnityEngine.Object.DestroyImmediate(go);
         AssetImporter.GetAtPath(prefabPath).SetAssetBundleNameAndVariant(BundleName, "");
         log.AppendLine(string.Format("{0} bounds min {1} max {2}", src.name, V(b.min), V(b.max)));
@@ -430,10 +512,10 @@ public static class HSPortalBuild
 
     static Shader UnlitShader()
     {
-        var s = Shader.Find("Unlit/Color");
-        if (s == null) s = Shader.Find("Sprites/Default");
+        var s = Shader.Find("Standard");
+        if (s == null) s = Shader.Find("HSPortal/UnlitColor");
+        if (s == null) s = Shader.Find("Unlit/Color");
         if (s == null) s = Shader.Find("Legacy Shaders/Diffuse");
-        if (s == null) s = Shader.Find("Standard");
         return s;
     }
 
@@ -450,7 +532,10 @@ public static class HSPortalBuild
         m.shader = sh;
         if (m.HasProperty("_Color")) m.SetColor("_Color", c);
         else m.color = c;
+        if (m.HasProperty("_Metallic")) m.SetFloat("_Metallic", name.IndexOf("Metal", StringComparison.OrdinalIgnoreCase) >= 0 ? 0.55f : 0.08f);
+        if (m.HasProperty("_Glossiness")) m.SetFloat("_Glossiness", 0.28f);
         EditorUtility.SetDirty(m);
+        AssetImporter.GetAtPath(path).SetAssetBundleNameAndVariant(BundleName, "");
         return m;
     }
 

@@ -1,136 +1,193 @@
+using System.Collections.Generic;
 using HarmonyLib;
 using UnityEngine;
 
 public static class HSPortalTeleporter
 {
-    static HSPortal ignore;
-    static int ignoreOwner;
+    class Gate
+    {
+        public HSPortal portal;
+        public float until;
+    }
+
+    static readonly Dictionary<int, Gate> gates = new Dictionary<int, Gate>();
+    static readonly List<Entity> found = new List<Entity>();
     static Vector3 pendingVel;
     static bool hasPending;
+    static int pendingFrames;
     static vp_FPController pendingFp;
-    static bool loggedSign;
     static float nextTry;
 
     public static void Tick()
     {
         if (Time.unscaledTime < nextTry) return;
-        nextTry = Time.unscaledTime + 0.02f;
+        nextTry = Time.unscaledTime + 0.03f;
         var world = GameManager.Instance != null ? GameManager.Instance.World : null;
         if (world == null) return;
-        var player = world.GetPrimaryPlayer();
-        if (player == null) return;
-        var pair = HSPortalWorld.GetPair(player.entityId, false);
-        if (pair == null || !pair.Linked) return;
-
-        var mid = CapsuleMid(player);
-        ReleaseIgnore(pair, mid);
-        TryEnter(world, player, pair.Blue, pair.Orange, mid);
-        TryEnter(world, player, pair.Orange, pair.Blue, mid);
+        foreach (var kv in HSPortalWorld.All)
+        {
+            var pair = kv.Value;
+            if (pair == null || !pair.Linked) continue;
+            Sweep(world, pair.Blue, pair.Orange);
+            Sweep(world, pair.Orange, pair.Blue);
+        }
     }
 
-    static void TryEnter(World world, EntityPlayerLocal player, HSPortal src, HSPortal dst, Vector3 mid)
+    static void Sweep(World world, HSPortal src, HSPortal dst)
     {
         if (src == null || dst == null) return;
-        if (ignore != null && ignoreOwner == src.OwnerId && ReferenceEquals(ignore, dst)) return;
-        if (!HSPortalMath.InEllipse(src, mid, 0.08f)) return;
-        var vel = ReadVelocity(player);
-        float into = Vector3.Dot(vel.sqrMagnitude > 0.01f ? vel : (src.Center - mid), -src.Normal);
-        float along = Vector3.Dot(mid - src.Center, src.Normal);
-        if (into < 0.04f && along > 0.18f) return;
-        Teleport(world, player, src, dst, vel);
+        found.Clear();
+        var ext = new Vector3(src.HalfWidth + 1.2f, src.HalfHeight + 1.4f, src.HalfWidth + 1.2f);
+        var bb = new Bounds(src.Center, ext * 2f);
+        world.GetEntitiesInBounds(typeof(Entity), bb, found);
+        for (int i = 0; i < found.Count; i++)
+            TryEntity(world, found[i], src, dst);
     }
 
-    static void ReleaseIgnore(HSPortalPair pair, Vector3 mid)
+    static void TryEntity(World world, Entity e, HSPortal src, HSPortal dst)
     {
-        if (ignore == null) return;
-        if (pair.Blue != null && HSPortalMath.InEllipse(pair.Blue, mid, 0.2f)) return;
-        if (pair.Orange != null && HSPortalMath.InEllipse(pair.Orange, mid, 0.2f)) return;
-        ignore = null;
-    }
+        if (e == null || e.IsDead()) return;
+        if (e.AttachedToEntity != null) return;
+        if (e is EntityFallingBlock) return;
 
-    static Vector3 CapsuleMid(EntityPlayerLocal player)
-    {
-        var fp = player.vp_FPController;
-        float h = 1.8f;
-        if (fp != null && fp.m_CharacterController != null) h = fp.m_CharacterController.height;
-        return player.position + Vector3.up * (h * 0.5f);
-    }
+        var local = e as EntityPlayerLocal;
+        if (e is EntityPlayer && local == null) return;
+        if (local != null && GameManager.IsDedicatedServer) return;
+        if (local == null && !HSPortalNet.IsAuthority) return;
 
-    static Vector3 ReadVelocity(EntityPlayerLocal player)
-    {
-        var fp = player.vp_FPController;
-        if (fp != null)
+        Gate g;
+        if (gates.TryGetValue(e.entityId, out g) && g != null && ReferenceEquals(g.portal, src))
         {
+            if (Time.unscaledTime < g.until || Overlaps(src, e)) return;
+            gates.Remove(e.entityId);
+        }
+        if (!Overlaps(src, e)) return;
+        TeleportEntity(world, e, src, dst);
+    }
+
+    static bool Overlaps(HSPortal src, Entity e)
+    {
+        var feet = e.position;
+        var mid = feet + Vector3.up * Mathf.Max(0.35f, e.boundingBox.size.y * 0.45f);
+        if (HSPortalMath.InEllipse(src, mid, 0.22f)) return true;
+        if (HSPortalMath.InEllipse(src, feet + Vector3.up * 0.25f, 0.22f)) return true;
+        if (HSPortalMath.InEllipse(src, feet + Vector3.up * 1.05f, 0.22f)) return true;
+        return false;
+    }
+
+    static Vector3 ReadVel(Entity e)
+    {
+        var local = e as EntityPlayerLocal;
+        if (local != null && local.vp_FPController != null)
+        {
+            var fp = local.vp_FPController;
             var v = fp.Velocity;
             if (v.sqrMagnitude > 0.0001f) return v;
             return new Vector3(fp.m_MotorThrottle.x + fp.m_ExternalForce.x, fp.m_FallSpeed, fp.m_MotorThrottle.z + fp.m_ExternalForce.z);
         }
-        return player.motion;
+        var item = e as EntityItem;
+        if (item != null && item.itemRB != null && item.itemRB.velocity.sqrMagnitude > 0.0001f)
+            return item.itemRB.velocity;
+        if (e.physicsRB != null && e.physicsRB.velocity.sqrMagnitude > 0.0001f)
+            return e.physicsRB.velocity;
+        if (e.motion.sqrMagnitude > 0.0001f) return e.motion;
+        return e.physicsVel;
     }
 
-    static void Teleport(World world, EntityPlayerLocal player, HSPortal src, HSPortal dst, Vector3 vel)
+    static bool IsPhysicsProp(Entity e)
     {
-        var fp = player.vp_FPController;
-        float radius = 0.4f;
+        if (e is EntityItem) return true;
+        if (e is EntityAlive) return false;
+        return e.physicsRB != null;
+    }
+
+    static Vector3 LookFwd(Entity e)
+    {
+        var local = e as EntityPlayerLocal;
+        if (local != null && local.vp_FPCamera != null && local.vp_FPCamera.Transform != null)
+            return local.vp_FPCamera.Transform.forward;
+        var alive = e as EntityAlive;
+        if (alive != null)
+        {
+            try { return alive.GetLookVector(); }
+            catch { }
+        }
+        return Quaternion.Euler(0f, e.rotation.y, 0f) * Vector3.forward;
+    }
+
+    static void TeleportEntity(World world, Entity e, HSPortal src, HSPortal dst)
+    {
+        float radius = 0.35f;
         float height = 1.8f;
-        if (fp != null && fp.m_CharacterController != null)
+        var size = e.boundingBox.size;
+        if (size.y > 0.2f) height = size.y;
+        if (size.x > 0.1f) radius = Mathf.Clamp(size.x * 0.5f, 0.12f, 0.55f);
+
+        Vector3 exit;
+        bool prop = IsPhysicsProp(e);
+        if (prop)
+            exit = HSPortalMath.ExitPointPhysics(src, dst, e.position);
+        else
         {
-            radius = fp.m_CharacterController.radius;
-            height = fp.m_CharacterController.height;
+            exit = HSPortalMath.ExitPoint(dst, radius, height);
+            if (Blocked(world, exit, radius, height))
+            {
+                exit = dst.Center + dst.Normal * (radius + 0.9f);
+                if (Mathf.Abs(dst.Normal.y) < 0.55f)
+                    exit.y = dst.Center.y - height * 0.52f;
+            }
         }
 
-        var newPos = HSPortalMath.TransformPoint(src, dst, player.position);
-        newPos += dst.Normal * (radius + 0.18f);
-        if (Blocked(world, newPos, radius, height))
-        {
-            HSPortalDebug.Verbose("Exit blocked at " + newPos);
-            return;
-        }
-
-        var newVel = HSPortalMath.TransformDirection(src, dst, vel);
-        var cam = player.vp_FPCamera;
-        Vector3 oldFwd = cam != null && cam.Transform != null ? cam.Transform.forward : player.GetLookRay().direction;
-        var newFwd = HSPortalMath.TransformDirection(src, dst, oldFwd);
+        var newVel = HSPortalMath.TransformVelocity(src, dst, ReadVel(e));
         float yaw, pitch;
-        HSPortalMath.LookYawPitch(newFwd, out yaw, out pitch);
+        HSPortalMath.ExitLook(src, dst, LookFwd(e), out yaw, out pitch);
+        if (!(e is EntityPlayer)) pitch = 0f;
 
-        if (!loggedSign)
+        e.SetPosition(exit, true);
+        if (!prop) e.SetRotation(new Vector3(pitch, yaw, 0f));
+        e.motion = newVel;
+        e.physicsVel = newVel;
+        if (e.physicsRB != null) e.physicsRB.velocity = newVel;
+        var dropped = e as EntityItem;
+        if (dropped != null && dropped.itemRB != null)
         {
-            loggedSign = true;
-            HSPortalDebug.Info("First teleport fallSpeed=" + (fp != null ? fp.m_FallSpeed.ToString("0.000") : "?")
-                + " ccVel=" + vel.ToString("F3")
-                + " newVel=" + newVel.ToString("F3")
-                + " camPitch=" + (cam != null ? cam.Pitch.ToString("0.00") : "?")
-                + " yaw=" + (cam != null ? cam.Yaw.ToString("0.00") : "?")
-                + " newPitch=" + pitch.ToString("0.00") + " newYaw=" + yaw.ToString("0.00"));
+            dropped.itemRB.velocity = newVel;
+            dropped.itemRB.angularVelocity *= 0.4f;
         }
 
-        player.SetPosition(newPos, true);
-        player.SetRotation(new Vector3(pitch, yaw, 0f));
-        player.motion = newVel;
-        if (fp != null)
+        var local = e as EntityPlayerLocal;
+        if (local != null)
         {
-            fp.SetPosition(newPos - Origin.position);
-            pendingVel = newVel;
-            hasPending = true;
-            pendingFp = fp;
+            var fp = local.vp_FPController;
+            if (fp != null)
+            {
+                fp.SetPosition(exit - Origin.position);
+                pendingVel = newVel;
+                hasPending = true;
+                pendingFrames = 5;
+                pendingFp = fp;
+            }
+            var cam = local.vp_FPCamera;
+            if (cam != null) cam.SetRotation(new Vector2(pitch, yaw), true);
+            HSPortalNet.SendTeleport(e.entityId, exit, yaw, pitch, newVel);
         }
-        if (cam != null) cam.SetRotation(new Vector2(pitch, yaw), true);
 
-        ignore = dst;
-        ignoreOwner = dst.OwnerId;
-        HSPortalDebug.Verbose("Teleport " + (src.Orange ? "orange" : "blue") + " -> " + (dst.Orange ? "orange" : "blue") + " pos=" + newPos + " vel=" + newVel);
-        HSPortalNet.SendTeleport(player.entityId, newPos, yaw, pitch, newVel);
+        gates[e.entityId] = new Gate { portal = dst, until = Time.unscaledTime + 0.4f };
+        HSPortalDebug.Verbose("Portal " + e.GetType().Name + " " + (src.Orange ? "O" : "B") + "->" + (dst.Orange ? "O" : "B") + " vel=" + newVel);
     }
 
     public static void ApplyPending(vp_FPController fp)
     {
         if (!hasPending || fp == null || !ReferenceEquals(fp, pendingFp)) return;
-        hasPending = false;
-        pendingFp = null;
         fp.m_MotorThrottle = Vector3.zero;
         fp.m_FallSpeed = pendingVel.y;
         fp.m_ExternalForce = new Vector3(pendingVel.x, 0f, pendingVel.z);
+        pendingFrames--;
+        if (pendingFrames <= 0)
+        {
+            hasPending = false;
+            pendingFp = null;
+        }
     }
 
     public static void ApplyRemote(Entity entity, Vector3 pos, float yaw, float pitch, Vector3 vel)
@@ -139,16 +196,11 @@ public static class HSPortalTeleporter
         var local = entity as EntityPlayerLocal;
         if (local != null)
         {
-            var world = GameManager.Instance != null ? GameManager.Instance.World : null;
-            if (world != null)
+            gates[local.entityId] = new Gate
             {
-                var pair = HSPortalWorld.GetPair(local.entityId, false);
-                if (pair != null && pair.Linked)
-                {
-                    ignore = Vector3.Distance(pos, pair.Blue.Center) < Vector3.Distance(pos, pair.Orange.Center) ? pair.Blue : pair.Orange;
-                    ignoreOwner = local.entityId;
-                }
-            }
+                portal = Nearest(local.entityId, pos),
+                until = Time.unscaledTime + 0.4f
+            };
             local.SetPosition(pos, true);
             local.SetRotation(new Vector3(pitch, yaw, 0f));
             local.motion = vel;
@@ -158,6 +210,7 @@ public static class HSPortalTeleporter
                 fp.SetPosition(pos - Origin.position);
                 pendingVel = vel;
                 hasPending = true;
+                pendingFrames = 5;
                 pendingFp = fp;
             }
             var cam = local.vp_FPCamera;
@@ -167,6 +220,14 @@ public static class HSPortalTeleporter
         entity.SetPosition(pos, true);
         entity.SetRotation(new Vector3(pitch, yaw, 0f));
         entity.motion = vel;
+        entity.physicsVel = vel;
+    }
+
+    static HSPortal Nearest(int ownerId, Vector3 pos)
+    {
+        var pair = HSPortalWorld.GetPair(ownerId, false);
+        if (pair == null || !pair.Linked) return null;
+        return Vector3.Distance(pos, pair.Blue.Center) < Vector3.Distance(pos, pair.Orange.Center) ? pair.Blue : pair.Orange;
     }
 
     static bool Blocked(World world, Vector3 feet, float radius, float height)

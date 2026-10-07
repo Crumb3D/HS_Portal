@@ -10,7 +10,7 @@
 			<property name="Material" value="Mmetal_medium"/>
 			<property name="Shape" value="ModelEntity"/>
 			<property name="Model" value="#@modfolder:Resources/HSPortal.unity3d?CompanionCube"/>
-			<property name="ModelOffset" value="0.5,0.5,0.5"/>
+			<property name="ModelOffset" value="0,0,0"/>
 			<property name="Place" value="TowardsPlacer"/>
 			<property name="Collide" value="movement,melee,bullet,arrow,rocket"/>
 			<property name="Path" value="solid"/>

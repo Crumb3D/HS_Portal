@@ -164,16 +164,24 @@ public class ConsoleCmdHSPortal : ConsoleCmdAbstract
             var item = ItemClass.GetItem(names[i], true);
             if (item == null || item.ItemClass == null) continue;
             var stack = new ItemStack(new ItemValue(item.type, true), 1);
-            if (player.inventory.AddItem(stack)) got.Add(names[i]);
+            if (GiveStack(player, stack)) got.Add(names[i]);
         }
         var goo = ItemClass.GetItem("hsportalGoo", true);
         if (goo != null && goo.ItemClass != null)
         {
             var gooStack = new ItemStack(new ItemValue(goo.type, true), 32);
-            if (player.inventory.AddItem(gooStack)) got.Add("hsportalGoo x32");
+            if (GiveStack(player, gooStack)) got.Add("hsportalGoo x32");
         }
-        if (got.Count == 0) return "Could not give kit (missing items or inventory full).";
+        if (got.Count == 0) return "Could not give kit (missing items or inventory full). Try emptying a bag slot, or Creative → Clothing → Long-Fall Boots.";
         return "Gave " + string.Join(", ", got.ToArray()) + " to " + player.EntityName + ".";
+    }
+
+    static bool GiveStack(EntityPlayer player, ItemStack stack)
+    {
+        if (player == null || stack == null) return false;
+        if (player.bag != null && player.bag.AddItem(new ItemStack(stack.itemValue.Clone(), stack.count))) return true;
+        if (player.inventory != null && player.inventory.AddItem(new ItemStack(stack.itemValue.Clone(), stack.count))) return true;
+        return false;
     }
 
     static string Gel(World world, EntityPlayer player, bool orange, string who)

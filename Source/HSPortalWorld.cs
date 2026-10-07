@@ -149,7 +149,7 @@ public static class HSPortalWorld
         {
             var cell = portal.Cells[i];
             if (world.GetChunkFromWorldPos(cell) == null) return false;
-            if (!HSPortalPlacement.IsLegalFace(world, cell, portal.Face)) return true;
+            if (!HSPortalPlacement.IsPortalSurface(world, cell, portal.Face)) return true;
         }
         return false;
     }

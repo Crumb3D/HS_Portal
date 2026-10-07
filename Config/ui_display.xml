@@ -1,0 +1,8 @@
+<configs>
+	<insertAfter xpath="/ui_display_info/item_display/item_display_info[@display_type='armorAthleticBoots']">
+		<item_display_info display_type="hsportalBoots" display_group="groupAttire" extends="armorLight">
+			<display_entry name="dFallDamage" title_key="statFallDamage" display_type="Percent"/>
+			<display_entry name="dRunSpeed" title_key="statRunSpeed" display_type="Percent" display_leading_plus="true"/>
+		</item_display_info>
+	</insertAfter>
+</configs>

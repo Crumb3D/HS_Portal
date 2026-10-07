@@ -30,6 +30,8 @@ public static class HSPortalVisual
 
     public static void RebuildOwner(int ownerId)
     {
+        UnparentCam(Key(ownerId, false));
+        UnparentCam(Key(ownerId, true));
         DestroyKey(Key(ownerId, false));
         DestroyKey(Key(ownerId, true));
         if (GameManager.IsDedicatedServer) return;
@@ -42,6 +44,7 @@ public static class HSPortalVisual
     public static void DestroyAll()
     {
         var keys = new List<string>(views.Keys);
+        for (int i = 0; i < keys.Count; i++) UnparentCam(keys[i]);
         for (int i = 0; i < keys.Count; i++) DestroyKey(keys[i]);
     }
 
@@ -70,72 +73,185 @@ public static class HSPortalVisual
     static void RenderViews()
     {
         if (GameManager.IsDedicatedServer) return;
-        var playerCam = PlayerCam();
-        if (playerCam == null) return;
         foreach (var kv in HSPortalWorld.All)
         {
             var pair = kv.Value;
             if (pair == null || !pair.Linked || pair.Blue == null || pair.Orange == null) continue;
-            RenderThrough(pair.Blue, pair.Orange, playerCam);
-            RenderThrough(pair.Orange, pair.Blue, playerCam);
+            RenderThrough(pair.Blue, pair.Orange);
+            RenderThrough(pair.Orange, pair.Blue);
         }
     }
 
-    static void RenderThrough(HSPortal lookingAt, HSPortal dest, Camera playerCam)
+    static void RenderThrough(HSPortal lookingAt, HSPortal dest)
     {
         View v;
         if (!views.TryGetValue(Key(lookingAt.OwnerId, lookingAt.Orange), out v) || v == null || v.cam == null) return;
-        var camWorld = playerCam.transform.position + Origin.position;
-        var outWorld = HSPortalMath.TransformPoint(lookingAt, dest, camWorld);
-        v.cam.transform.position = outWorld - Origin.position;
-        v.cam.transform.rotation = HSPortalMath.TransformRotation(lookingAt, dest, playerCam.transform.rotation);
+
+        var camT = v.cam.transform;
+        camT.SetParent(null, true);
+        camT.position = dest.Center - Origin.position + dest.Normal * 0.15f;
+        var up = dest.Up.sqrMagnitude > 0.0001f ? dest.Up : Vector3.up;
+        if (Vector3.Dot(up, dest.Normal) > 0.95f) up = Vector3.up;
+        camT.rotation = Quaternion.LookRotation(dest.Normal, up);
+        camT.localScale = Vector3.one;
+
+        v.cam.enabled = false;
         v.cam.ResetProjectionMatrix();
-        v.cam.fieldOfView = playerCam.fieldOfView;
+        v.cam.orthographic = false;
+        v.cam.fieldOfView = 75f;
         v.cam.nearClipPlane = 0.08f;
-        v.cam.farClipPlane = playerCam.farClipPlane > 1f ? playerCam.farClipPlane : 250f;
-        v.cam.aspect = playerCam.aspect;
-        v.cam.cullingMask = playerCam.cullingMask;
+        v.cam.farClipPlane = 250f;
+        v.cam.aspect = 1f;
+        v.cam.cullingMask = WorldMask();
         v.cam.useOcclusionCulling = false;
-        v.cam.clearFlags = playerCam.clearFlags;
-        v.cam.backgroundColor = playerCam.backgroundColor;
-        SetOblique(v.cam, dest.Center - Origin.position, dest.Normal);
+        v.cam.clearFlags = CameraClearFlags.Skybox;
+        v.cam.backgroundColor = new Color(0.45f, 0.62f, 0.85f, 1f);
+        v.cam.targetTexture = v.rt;
+        v.cam.depth = -20;
 
         View destView;
+        views.TryGetValue(Key(dest.OwnerId, dest.Orange), out destView);
         bool destWasOn = false;
-        if (views.TryGetValue(Key(dest.OwnerId, dest.Orange), out destView) && destView != null && destView.fill != null)
+        if (destView != null && destView.fill != null)
         {
             destWasOn = destView.fill.activeSelf;
             destView.fill.SetActive(false);
         }
         if (v.fill != null) v.fill.SetActive(false);
+        var hidden = HideViewmodel();
+        var body = ShowLocalBody(true);
         v.cam.Render();
+        ShowLocalBody(false, body);
+        RestoreViewmodel(hidden);
         if (v.fill != null) v.fill.SetActive(true);
         if (destView != null && destView.fill != null) destView.fill.SetActive(destWasOn);
         if (v.viewMat != null) v.viewMat.mainTexture = v.rt;
     }
 
-    static void SetOblique(Camera cam, Vector3 planePos, Vector3 planeNormal)
+    static int WorldMask()
     {
-        var offset = planePos + planeNormal * 0.04f;
-        var m = cam.worldToCameraMatrix;
-        var cpos = m.MultiplyPoint(offset);
-        var cnormal = m.MultiplyVector(planeNormal).normalized;
-        if (Mathf.Abs(cnormal.z) < 0.001f) return;
-        var clip = new Vector4(cnormal.x, cnormal.y, cnormal.z, -Vector3.Dot(cpos, cnormal));
-        try { cam.projectionMatrix = cam.CalculateObliqueMatrix(clip); }
-        catch { cam.ResetProjectionMatrix(); }
+        int mask = ~0;
+        mask &= ~(1 << 5);
+        var names = new[] { "UI", "ScreenSpace" };
+        for (int i = 0; i < names.Length; i++)
+        {
+            int layer = LayerMask.NameToLayer(names[i]);
+            if (layer >= 0) mask &= ~(1 << layer);
+        }
+        return mask;
     }
 
-    static Camera PlayerCam()
+    static List<Renderer> HideViewmodel()
     {
+        var hidden = new List<Renderer>();
         try
         {
             var world = GameManager.Instance != null ? GameManager.Instance.World : null;
             var p = world != null ? world.GetPrimaryPlayer() : null;
-            if (p != null && p.playerCamera != null) return p.playerCamera;
+            if (p == null) return hidden;
+            CollectEnabled(p.playerCamera != null ? p.playerCamera.transform : null, hidden);
+            if (p.vp_FPWeapon != null)
+                CollectEnabled(p.vp_FPWeapon.transform, hidden);
         }
         catch { }
-        return Camera.main;
+        return hidden;
+    }
+
+    static void CollectEnabled(Transform root, List<Renderer> hidden)
+    {
+        if (root == null) return;
+        var rs = root.GetComponentsInChildren<Renderer>(true);
+        for (int i = 0; i < rs.Length; i++)
+        {
+            if (rs[i] == null || !rs[i].enabled) continue;
+            rs[i].enabled = false;
+            hidden.Add(rs[i]);
+        }
+    }
+
+    static void RestoreViewmodel(List<Renderer> hidden)
+    {
+        if (hidden == null) return;
+        for (int i = 0; i < hidden.Count; i++)
+            if (hidden[i] != null) hidden[i].enabled = true;
+    }
+
+    class BodyShow
+    {
+        public readonly List<GameObject> activated = new List<GameObject>();
+        public readonly List<Renderer> enabled = new List<Renderer>();
+    }
+
+    static BodyShow ShowLocalBody(bool show, BodyShow previous = null)
+    {
+        if (!show)
+        {
+            if (previous == null) return null;
+            for (int i = 0; i < previous.enabled.Count; i++)
+                if (previous.enabled[i] != null) previous.enabled[i].enabled = false;
+            for (int i = 0; i < previous.activated.Count; i++)
+                if (previous.activated[i] != null) previous.activated[i].SetActive(false);
+            return null;
+        }
+        var state = new BodyShow();
+        try
+        {
+            var world = GameManager.Instance != null ? GameManager.Instance.World : null;
+            var p = world != null ? world.GetPrimaryPlayer() : null;
+            if (p == null || p.emodel == null) return state;
+            var sdcs = p.emodel as EModelSDCS;
+            ForceShow(sdcs != null ? sdcs.baseRig : null, state);
+            ForceShow(p.emodel.meshTransform != null ? p.emodel.meshTransform.gameObject : null, state);
+            if (p.emodel.transform != null) EnableRenderers(p.emodel.transform, state);
+        }
+        catch { }
+        return state;
+    }
+
+    static void ForceShow(GameObject go, BodyShow state)
+    {
+        if (go == null) return;
+        if (!go.activeSelf)
+        {
+            go.SetActive(true);
+            state.activated.Add(go);
+        }
+        EnableRenderers(go.transform, state);
+    }
+
+    static void EnableRenderers(Transform root, BodyShow state)
+    {
+        if (root == null) return;
+        var rs = root.GetComponentsInChildren<Renderer>(true);
+        for (int i = 0; i < rs.Length; i++)
+        {
+            var r = rs[i];
+            if (r == null || r.enabled) continue;
+            if (IsViewmodelRenderer(r)) continue;
+            r.enabled = true;
+            state.enabled.Add(r);
+        }
+    }
+
+    static bool IsViewmodelRenderer(Renderer r)
+    {
+        var t = r.transform;
+        while (t != null)
+        {
+            var n = t.name;
+            if (n.IndexOf("FPV", StringComparison.OrdinalIgnoreCase) >= 0) return true;
+            if (n.IndexOf("Viewmodel", StringComparison.OrdinalIgnoreCase) >= 0) return true;
+            if (n.IndexOf("vpcam", StringComparison.OrdinalIgnoreCase) >= 0) return true;
+            t = t.parent;
+        }
+        return false;
+    }
+
+    static void UnparentCam(string key)
+    {
+        View v;
+        if (!views.TryGetValue(key, out v) || v == null || v.cam == null) return;
+        v.cam.transform.SetParent(null, true);
     }
 
     static void DestroyKey(string key)
@@ -144,7 +260,11 @@ public static class HSPortalVisual
         if (!views.TryGetValue(key, out v)) return;
         views.Remove(key);
         if (v == null) return;
-        if (v.cam != null) UnityEngine.Object.Destroy(v.cam.gameObject);
+        if (v.cam != null)
+        {
+            v.cam.transform.SetParent(null, true);
+            UnityEngine.Object.Destroy(v.cam.gameObject);
+        }
         if (v.rt != null) v.rt.Release();
         if (v.root != null) UnityEngine.Object.Destroy(v.root);
     }
@@ -217,7 +337,8 @@ public static class HSPortalVisual
     {
         if (colorShader == null)
         {
-            colorShader = Shader.Find("Unlit/Color");
+            colorShader = FindShader("HSPortal/UnlitColor");
+            if (colorShader == null) colorShader = Shader.Find("Unlit/Color");
             if (colorShader == null) colorShader = Shader.Find("Sprites/Default");
             if (colorShader == null) colorShader = Shader.Find("Hidden/Internal-Colored");
         }
@@ -241,10 +362,14 @@ public static class HSPortalVisual
                 "UI/Default",
                 "Legacy Shaders/Diffuse"
             };
-            for (int i = 0; i < names.Length; i++)
+            texShader = FindShader("HSPortal/View");
+            if (texShader == null)
             {
-                var s = Shader.Find(names[i]);
-                if (s != null && s.isSupported) { texShader = s; break; }
+                for (int i = 0; i < names.Length; i++)
+                {
+                    var s = Shader.Find(names[i]);
+                    if (s != null && s.isSupported) { texShader = s; break; }
+                }
             }
             if (texShader == null) texShader = colorShader;
         }
@@ -252,6 +377,25 @@ public static class HSPortalVisual
         if (m.HasProperty("_Color")) m.SetColor("_Color", tint);
         m.renderQueue = 2999;
         return m;
+    }
+
+    static Shader FindShader(string name)
+    {
+        var found = Shader.Find(name);
+        if (found != null && found.isSupported) return found;
+        try
+        {
+            foreach (var b in AssetBundle.GetAllLoadedAssetBundles())
+            {
+                if (b == null) continue;
+                var shaders = b.LoadAllAssets<Shader>();
+                if (shaders == null) continue;
+                for (int i = 0; i < shaders.Length; i++)
+                    if (shaders[i] != null && shaders[i].name == name) return shaders[i];
+            }
+        }
+        catch { }
+        return found;
     }
 
     static void EnsureMesh()

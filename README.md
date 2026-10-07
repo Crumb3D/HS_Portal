@@ -2,7 +2,7 @@
 
 Survival-styled portal gun, gel, weighted cube, and long-fall boots for **7 Days to Die 3.2**. Portal 2 is a behaviour reference only — no Valve meshes.
 
-The held gun is an original industrial 7DTD weapon (claws, blue/orange coils, DANGER pack) built from `portal Gun Design.png`. **Version 0.3.1.**
+The held gun is an original industrial 7DTD weapon (claws, blue/orange coils, DANGER pack) built from `portal Gun Design.png`. **Version 0.3.2.**
 
 License: [MIT](LICENSE). Author: Crumb.
 
@@ -32,13 +32,13 @@ Creative menu still has everything. Admin `hsportal give` dumps the whole kit.
 
 ## Use
 
-**Portal gun** — left click blue, right click orange. Firing plays the gun animation; a reject shake plays if the surface is illegal. One portal is a static coloured opening. A linked pair teleports both ways and each opening shows the view through the other.
+**Portal gun** — left click blue, right click orange, **middle click** fizzles both. The HUD at the top of the screen lights the colours that are currently out; the bar between them lights when the pair is linked.
 
 **Gel gun** — craft **Repulsion/Propulsion Goo** (paint, scrap polymers, acid) and reload with R. The ammo widget on the right of the HUD shows the magazine. Left click blue bounce gel, right click orange speed gel.
 
-**Long-fall boots** — feet slot. Ignore fall damage. Wear them before you bounce off high blue gel.
+**Long-fall boots** — feet slot, like vanilla shoes. They hide the default feet and sit on the character (3rd person and other players). Light-armor protection, durability, and a small run-speed bonus while worn. Fall damage is ignored only while they are equipped.
 
-**Weighted cube** — placeable scrap-steel crate with a heart stencil. E to pick up.
+**Weighted cube** — placeable scrap-steel crate. Diffuse, displacement, and glow maps drive the faces; the heart lights. E to pick up.
 
 Valid surfaces: full non-terrain cubes (walls, floors, ceilings). Terrain, plants, wedges, doors, and plates reject.
 

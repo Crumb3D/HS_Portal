@@ -44,11 +44,21 @@ public static class HSPortalNet
         }
     }
 
+    static Type pkgType;
+
+    static Type PackageType32()
+    {
+        return typeof(NetPackageHSPortal);
+    }
+
     public static void RegisterPackage()
     {
         try
         {
-            var t = typeof(NetPackageHSPortal);
+            var t = HSGameVersion.Is33
+                ? HSGameApi.NetPackageType33("NetPackageHSPortal", typeof(NetPackageHSPortalCore))
+                : PackageType32();
+            pkgType = t;
             var f = typeof(NetPackageManager).GetField("knownPackageTypes", BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic);
             if (f == null) return;
             var dict = f.GetValue(null) as IDictionary;
@@ -71,9 +81,10 @@ public static class HSPortalNet
         }
     }
 
-    static NetPackageHSPortal Pkg()
+    static NetPackageHSPortalCore Pkg()
     {
-        return NetPackageManager.GetPackage<NetPackageHSPortal>();
+        if (pkgType == null) RegisterPackage();
+        return (NetPackageHSPortalCore)HSGameApi.GetNetPackage(pkgType);
     }
 
     static void ToServer(NetPackage pkg)
@@ -147,14 +158,29 @@ public static class HSPortalNet
         {
             var world = GameManager.Instance != null ? GameManager.Instance.World : null;
             var locals = world != null ? world.GetLocalPlayers() : null;
-            if (locals == null) return;
-            for (int i = 0; i < locals.Count; i++)
+            if (locals != null)
             {
-                var p = locals[i] as EntityPlayerLocal;
-                if (p != null && p.entityId == ownerId) GameManager.ShowTooltip(p, msg);
+                for (int i = 0; i < locals.Count; i++)
+                {
+                    var p = locals[i] as EntityPlayerLocal;
+                    if (p != null && p.entityId == ownerId)
+                    {
+                        GameManager.ShowTooltip(p, msg);
+                        return;
+                    }
+                }
+            }
+            if (IsAuthority)
+            {
+                var cm = ConnectionManager.Instance;
+                if (cm != null && cm.IsServer)
+                    cm.SendPackage(Pkg().OfTip(msg), false, ownerId);
             }
         }
-        catch { }
+        catch (Exception e)
+        {
+            HSPortalDebug.Warn("TellOwner failed: " + e.Message);
+        }
     }
 
     public static void SendGelPaint(EntityPlayerLocal player, bool orange)
@@ -236,25 +262,26 @@ public static class HSPortalNet
     }
 }
 
-public class NetPackageHSPortal : NetPackage
+public abstract class NetPackageHSPortalCore : NetPackage
 {
-    byte kind;
-    int ownerId;
-    bool orange;
-    Vector3 a;
-    Vector3 b;
-    Vector3 c;
-    float yaw;
-    float pitch;
-    HSPortal blue;
-    HSPortal orangePortal;
-    List<Vector3i> gelCells;
-    List<byte> gelFaces;
-    List<byte> gelColors;
+    protected byte kind;
+    protected int ownerId;
+    protected bool orange;
+    protected Vector3 a;
+    protected Vector3 b;
+    protected Vector3 c;
+    protected float yaw;
+    protected float pitch;
+    protected HSPortal blue;
+    protected HSPortal orangePortal;
+    protected List<Vector3i> gelCells;
+    protected List<byte> gelFaces;
+    protected List<byte> gelColors;
+    protected string text = "";
 
     public override NetPackageDirection PackageDirection { get { return NetPackageDirection.Both; } }
 
-    public NetPackageHSPortal OfPlace(int owner, bool isOrange, Vector3 origin, Vector3 dir)
+    public NetPackageHSPortalCore OfPlace(int owner, bool isOrange, Vector3 origin, Vector3 dir)
     {
         kind = HSPortalNet.Place;
         ownerId = owner;
@@ -264,14 +291,14 @@ public class NetPackageHSPortal : NetPackage
         return this;
     }
 
-    public NetPackageHSPortal OfClear(int owner)
+    public NetPackageHSPortalCore OfClear(int owner)
     {
         kind = HSPortalNet.Clear;
         ownerId = owner;
         return this;
     }
 
-    public NetPackageHSPortal OfState(int owner, HSPortal bPortal, HSPortal oPortal)
+    public NetPackageHSPortalCore OfState(int owner, HSPortal bPortal, HSPortal oPortal)
     {
         kind = HSPortalNet.State;
         ownerId = owner;
@@ -280,7 +307,7 @@ public class NetPackageHSPortal : NetPackage
         return this;
     }
 
-    public NetPackageHSPortal OfTeleport(int entityId, Vector3 pos, float y, float p, Vector3 vel)
+    public NetPackageHSPortalCore OfTeleport(int entityId, Vector3 pos, float y, float p, Vector3 vel)
     {
         kind = HSPortalNet.Teleport;
         ownerId = entityId;
@@ -291,7 +318,7 @@ public class NetPackageHSPortal : NetPackage
         return this;
     }
 
-    public NetPackageHSPortal OfGelPaint(int owner, bool isOrange, Vector3 origin, Vector3 dir)
+    public NetPackageHSPortalCore OfGelPaint(int owner, bool isOrange, Vector3 origin, Vector3 dir)
     {
         kind = HSPortalNet.GelPaint;
         ownerId = owner;
@@ -301,7 +328,7 @@ public class NetPackageHSPortal : NetPackage
         return this;
     }
 
-    public NetPackageHSPortal OfGelState(List<Vector3i> cells, List<byte> faces, List<byte> colors)
+    public NetPackageHSPortalCore OfGelState(List<Vector3i> cells, List<byte> faces, List<byte> colors)
     {
         kind = HSPortalNet.GelState;
         gelCells = cells;
@@ -310,14 +337,12 @@ public class NetPackageHSPortal : NetPackage
         return this;
     }
 
-    public NetPackageHSPortal OfTip(string msg)
+    public NetPackageHSPortalCore OfTip(string msg)
     {
         kind = HSPortalNet.Tip;
         text = msg ?? "";
         return this;
     }
-
-    string text = "";
 
     public override void read(PooledBinaryReader br)
     {
@@ -450,6 +475,10 @@ public class NetPackageHSPortal : NetPackage
         }
     }
 
+}
+
+public sealed class NetPackageHSPortal : NetPackageHSPortalCore
+{
     public override int GetLength()
     {
         return 96;

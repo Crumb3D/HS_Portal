@@ -73,6 +73,7 @@ public class HSPortalController : MonoBehaviour
             HSPortalWorld.Tick();
             HSPortalGel.Tick();
             HSPortalTeleporter.Tick();
+            ItemActionHSPortalGun.PollClear();
         }
         catch (System.Exception e)
         {
@@ -86,6 +87,8 @@ public class HSPortalController : MonoBehaviour
         {
             HSPortalVisual.SyncAll();
             HSPortalGelVisual.SyncAll();
+            HSPortalTint.TickHeld();
+            HSPortalWornBoots.Tick();
         }
         catch (System.Exception e) { HSPortalDebug.Error("Visual sync failed", e); }
     }

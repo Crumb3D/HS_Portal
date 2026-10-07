@@ -5,6 +5,7 @@ import bpy
 import bmesh
 import math
 import os
+import shutil
 import sys
 from mathutils import Vector, Euler, Matrix
 
@@ -12,6 +13,11 @@ argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
 HERE = os.path.dirname(os.path.abspath(__file__))
 OUT_DIR = os.path.abspath(argv[0]) if argv else os.path.abspath(os.path.join(HERE, "..", "_unity", "Assets", "HSPortal", "Models"))
 BLEND_OUT = os.path.abspath(argv[1]) if len(argv) > 1 else os.path.join(HERE, "hsportal_props.blend")
+TEX_DIR = os.path.abspath(os.path.join(HERE, "..", "UIAtlases"))
+TEX_DIFFUSE = os.path.join(TEX_DIR, "jack-jederstrom-bergman-comp-cube-texture-diffuse.jpg")
+TEX_DISP = os.path.join(TEX_DIR, "jack-jederstrom-bergman-comp-cube-texture-displacement.jpg")
+TEX_GLOW = os.path.join(TEX_DIR, "jack-jederstrom-bergman-comp-cube-texture-glow.jpg")
+UNITY_TEX = os.path.abspath(os.path.join(HERE, "..", "_unity", "Assets", "HSPortal", "Textures"))
 
 MATS = {
     "HSCube_Metal": (0.28, 0.27, 0.25, 1),
@@ -36,9 +42,79 @@ def mat(name):
     m = bpy.data.materials.get(name)
     if m is None:
         m = bpy.data.materials.new(name)
-    m.diffuse_color = MATS.get(name, (0.5, 0.5, 0.5, 1.0))
-    m.use_nodes = False
+    col = MATS.get(name, (0.5, 0.5, 0.5, 1.0))
+    m.diffuse_color = col
+    m.use_nodes = True
+    nt = m.node_tree
+    nt.nodes.clear()
+    out = nt.nodes.new("ShaderNodeOutputMaterial")
+    bsdf = nt.nodes.new("ShaderNodeBsdfPrincipled")
+    if "Base Color" in bsdf.inputs:
+        bsdf.inputs["Base Color"].default_value = col
+    if "Roughness" in bsdf.inputs:
+        bsdf.inputs["Roughness"].default_value = 0.45
+    nt.links.new(bsdf.outputs[0], out.inputs[0])
+    out.location = (280, 0)
+    bsdf.location = (0, 0)
     return m
+
+
+def load_img(path, non_color=False):
+    img = bpy.data.images.load(path, check_existing=True)
+    try:
+        img.colorspace_settings.name = "Non-Color" if non_color else "sRGB"
+    except Exception:
+        pass
+    return img
+
+
+def cube_mat():
+    m = bpy.data.materials.get("HSCube_Body")
+    if m is None:
+        m = bpy.data.materials.new("HSCube_Body")
+    m.use_nodes = True
+    m.diffuse_color = (0.55, 0.55, 0.56, 1)
+    nt = m.node_tree
+    nt.nodes.clear()
+    out = nt.nodes.new("ShaderNodeOutputMaterial")
+    bsdf = nt.nodes.new("ShaderNodeBsdfPrincipled")
+    tex_d = nt.nodes.new("ShaderNodeTexImage")
+    tex_d.image = load_img(TEX_DIFFUSE, False)
+    tex_e = nt.nodes.new("ShaderNodeTexImage")
+    tex_e.image = load_img(TEX_GLOW, False)
+    nt.links.new(tex_d.outputs["Color"], bsdf.inputs["Base Color"])
+    if "Emission Color" in bsdf.inputs:
+        nt.links.new(tex_e.outputs["Color"], bsdf.inputs["Emission Color"])
+        bsdf.inputs["Emission Strength"].default_value = 2.4
+    elif "Emission" in bsdf.inputs:
+        nt.links.new(tex_e.outputs["Color"], bsdf.inputs["Emission"])
+    if "Roughness" in bsdf.inputs:
+        bsdf.inputs["Roughness"].default_value = 0.38
+    if "Metallic" in bsdf.inputs:
+        bsdf.inputs["Metallic"].default_value = 0.35
+    nt.links.new(bsdf.outputs[0], out.inputs[0])
+    out.location = (360, 0)
+    bsdf.location = (80, 0)
+    tex_d.location = (-240, 80)
+    tex_e.location = (-240, -160)
+    return m
+
+
+def face_uv(n, co, half):
+    hx = max(half, 1e-6)
+    ax, ay, az = abs(n.x), abs(n.y), abs(n.z)
+    if az >= ax and az >= ay:
+        u = co.x / (2.0 * hx) + 0.5
+        v = co.y / (2.0 * hx) + 0.5
+        if n.z < 0.0:
+            v = 1.0 - v
+    elif ax >= ay:
+        u = ((-co.y) if n.x > 0.0 else co.y) / (2.0 * hx) + 0.5
+        v = co.z / (2.0 * hx) + 0.5
+    else:
+        u = (co.x if n.y > 0.0 else -co.x) / (2.0 * hx) + 0.5
+        v = co.z / (2.0 * hx) + 0.5
+    return u, v
 
 
 def new_mesh(name, parent, mat_name):
@@ -108,22 +184,60 @@ def heart_boxes(ob, face_off, axis):
 
 
 def build_cube():
+    # One UV-mapped cube. Displacement becomes the corner blocks; diffuse + glow are the face look.
     root = new_empty("CompanionCube", None)
-    body = new_mesh("CubeBody", root, "HSCube_Metal")
-    add_box(body, (0, 0, 0), (0.92, 0.92, 0.92))
-    frame = new_mesh("CubeFrame", root, "HSCube_MetalDark")
-    for s in (-1, 1):
-        add_box(frame, (s * 0.46, 0, 0), (0.04, 0.96, 0.96))
-        add_box(frame, (0, s * 0.46, 0), (0.96, 0.04, 0.96))
-        add_box(frame, (0, 0, s * 0.46), (0.96, 0.96, 0.04))
-    stripe = new_mesh("CubeStripe", root, "HSCube_Stripe")
-    add_box(stripe, (0, 0.48, 0), (0.7, 0.02, 0.08))
-    add_box(stripe, (0, -0.48, 0), (0.7, 0.02, 0.08))
-    heart = new_mesh("CubeHeart", root, "HSCube_Heart")
-    heart_boxes(heart, 0.48, "y")
-    heart_boxes(heart, -0.48, "y")
-    heart_boxes(heart, 0.48, "x")
-    heart_boxes(heart, -0.48, "x")
+    mesh = bpy.data.meshes.new("CubeBody")
+    ob = bpy.data.objects.new("CubeBody", mesh)
+    bpy.context.scene.collection.objects.link(ob)
+    ob.parent = root
+    ob.rotation_mode = "XYZ"
+    ob.data.materials.append(cube_mat())
+
+    side = 0.86
+    half = side * 0.5
+    bm = bmesh.new()
+    bmesh.ops.create_cube(bm, size=side)
+    bmesh.ops.subdivide_edges(bm, edges=list(bm.edges), cuts=28, use_grid_fill=True)
+    uv_layer = bm.loops.layers.uv.new("UVMap")
+    for face in bm.faces:
+        n = face.normal.copy()
+        n.normalize()
+        for loop in face.loops:
+            u, v = face_uv(n, loop.vert.co, half)
+            loop[uv_layer].uv = (u, v)
+    bm.to_mesh(mesh)
+    bm.free()
+    mesh.update()
+
+    img = load_img(TEX_DISP, True)
+    tex = bpy.data.textures.get("HSCubeDisp")
+    if tex is None:
+        tex = bpy.data.textures.new("HSCubeDisp", "IMAGE")
+    tex.image = img
+    md = ob.modifiers.new("HSCubeDisp", "DISPLACE")
+    md.texture = tex
+    md.texture_coords = "UV"
+    md.mid_level = 0.32
+    md.strength = 0.09
+    md.direction = "NORMAL"
+    bpy.context.view_layer.update()
+    dg = bpy.context.evaluated_depsgraph_get()
+    baked = bpy.data.meshes.new_from_object(ob.evaluated_get(dg), preserve_all_data_layers=True, depsgraph=dg)
+    ob.modifiers.clear()
+    old = ob.data
+    ob.data = baked
+    bpy.data.meshes.remove(old)
+    bpy.context.view_layer.objects.active = ob
+    bpy.ops.object.select_all(action="DESELECT")
+    ob.select_set(True)
+    try:
+        bpy.ops.object.shade_auto_smooth(angle=math.radians(42.0))
+    except Exception:
+        try:
+            bpy.ops.object.shade_smooth()
+        except Exception:
+            pass
+
     col = new_mesh("COL_Cube", root, "HSCube_Metal")
     add_box(col, (0, 0, 0), (1.0, 1.0, 1.0))
     return root
@@ -154,16 +268,21 @@ def build_gel_gun():
 
 
 def boot(parent, x):
-    leather = new_mesh("BootLeather", parent, "HSBoot_Leather")
-    add_box(leather, (x, 0.0, 0.06), (0.09, 0.22, 0.10))
-    add_box(leather, (x, 0.06, 0.16), (0.085, 0.10, 0.12))
-    shin = new_mesh("BootShin", parent, "HSBoot_Orange")
-    add_box(shin, (x, -0.02, 0.18), (0.095, 0.16, 0.08))
-    metal = new_mesh("BootPlate", parent, "HSBoot_Metal")
-    add_box(metal, (x, 0.08, 0.07), (0.1, 0.04, 0.08))
+    # Standing boot: +Y toes, -Y heel, +Z up, sole on the ground.
     sole = new_mesh("BootSole", parent, "HSBoot_Sole")
-    add_box(sole, (x, 0.02, 0.0), (0.1, 0.24, 0.04))
-    add_box(sole, (x, 0.08, 0.02), (0.1, 0.08, 0.03))
+    add_box(sole, (x, 0.03, 0.016), (0.088, 0.26, 0.032))
+    add_box(sole, (x, 0.13, 0.028), (0.088, 0.07, 0.028))
+    leather = new_mesh("BootLeather", parent, "HSBoot_Leather")
+    add_box(leather, (x, 0.03, 0.07), (0.082, 0.20, 0.09))
+    add_box(leather, (x, 0.11, 0.085), (0.08, 0.07, 0.07))
+    add_box(leather, (x, -0.05, 0.16), (0.08, 0.09, 0.14))
+    shaft = new_mesh("BootShaft", parent, "HSBoot_Leather")
+    add_box(shaft, (x, -0.055, 0.32), (0.082, 0.095, 0.20))
+    pad = new_mesh("BootShin", parent, "HSBoot_Orange")
+    add_box(pad, (x, 0.005, 0.33), (0.09, 0.038, 0.18))
+    metal = new_mesh("BootPlate", parent, "HSBoot_Metal")
+    add_box(metal, (x, 0.135, 0.055), (0.09, 0.04, 0.05))
+    add_box(metal, (x, -0.085, 0.05), (0.086, 0.035, 0.055))
 
 
 def build_goo():
@@ -194,8 +313,12 @@ def build_goo():
 
 def build_boots():
     root = new_empty("LongFallBoots", None)
-    boot(root, -0.08)
-    boot(root, 0.08)
+    left = new_empty("BootL", root)
+    right = new_empty("BootR", root)
+    boot(left, 0.0)
+    boot(right, 0.0)
+    left.location.x = -0.09
+    right.location.x = 0.09
     return root
 
 
@@ -227,6 +350,10 @@ def export_fbx(root, path):
 
 def main():
     os.makedirs(OUT_DIR, exist_ok=True)
+    os.makedirs(UNITY_TEX, exist_ok=True)
+    for src, name in ((TEX_DIFFUSE, "Cube_Diffuse.jpg"), (TEX_DISP, "Cube_Displacement.jpg"), (TEX_GLOW, "Cube_Glow.jpg")):
+        if os.path.isfile(src):
+            shutil.copy2(src, os.path.join(UNITY_TEX, name))
     for ob in list(bpy.data.objects):
         bpy.data.objects.remove(ob, do_unlink=True)
     scene = bpy.context.scene

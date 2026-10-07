@@ -65,9 +65,9 @@ if root is None:
 else:
     meshes = mesh_objects(root)
     center, size = world_bounds(meshes)
-    dist = size * 1.28
-    # Match the 3/4 perspective on portal Gun Design.png
-    yaw, pitch = math.radians(-42), math.radians(18)
+    dist = size * 1.22
+    # Front-left 3/4 so claws sit in the foreground like the concept sheet
+    yaw, pitch = math.radians(128), math.radians(16)
     d = Vector((
         math.cos(pitch) * math.cos(yaw),
         math.cos(pitch) * math.sin(yaw),

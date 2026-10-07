@@ -37,7 +37,7 @@ ModelImporter:
       takeName: Idle
       internalID: -3100369314251171874
       firstFrame: 0
-      lastFrame: 29
+      lastFrame: 23
       wrapMode: 0
       orientationOffsetY: 0
       level: 0
@@ -66,7 +66,7 @@ ModelImporter:
       takeName: Fire
       internalID: -4579541417933013020
       firstFrame: 0
-      lastFrame: 9
+      lastFrame: 13
       wrapMode: 0
       orientationOffsetY: 0
       level: 0
@@ -95,7 +95,7 @@ ModelImporter:
       takeName: Reject
       internalID: -6819629471834723847
       firstFrame: 0
-      lastFrame: 7
+      lastFrame: 9
       wrapMode: 0
       orientationOffsetY: 0
       level: 0
