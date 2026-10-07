@@ -63,6 +63,17 @@ public static class HSPortalPlacement
             Spark(hitPos, orange);
             return false;
         }
+        if (!IsSolidSupport(world, hitCell))
+        {
+            Spark(hitPos, orange);
+            return false;
+        }
+        if (IsFaceObstructed(world, hitCell, face))
+        {
+            fail = Localization.Get("hsportalDeniedBlocked");
+            Spark(hitPos, orange);
+            return false;
+        }
         Vector3i a, b;
         if (!SnapTwoBlocks(world, hitCell, face, hitPos, out a, out b))
         {
@@ -141,7 +152,7 @@ public static class HSPortalPlacement
             if (face == BlockFace.None || face == BlockFace.Middle)
                 face = DominantFace(cell, pos);
         }
-        return IsPortalSurface(world, cell, face) || IsMetal(world, cell);
+        return IsSolidSupport(world, cell) || IsMetal(world, cell);
     }
 
     static BlockFace DominantFace(Vector3i cell, Vector3 worldPos)
@@ -257,26 +268,32 @@ public static class HSPortalPlacement
 
     public static bool IsLegalFace(World world, Vector3i cell, BlockFace face)
     {
+        if (!IsSolidSupport(world, cell)) return false;
+        return !IsFaceObstructed(world, cell, face);
+    }
+
+    // Full cubes and terrain voxels (asphalt, concrete, dirt). Wedges, plates, furniture no.
+    static bool IsSolidSupport(World world, Vector3i cell)
+    {
         if (world == null) return false;
         if (world.GetChunkFromWorldPos(cell) == null) return false;
         var bv = world.GetBlock(cell);
         if (bv.isair || bv.Block == null) return false;
         var b = bv.Block;
-        if (b.shape == null || b.shape.IsTerrain()) return false;
-        if (!b.shape.IsSolidCube)
-        {
-            var name = b.GetBlockName();
-            if (name == null || name.IndexOf(":Cube", StringComparison.OrdinalIgnoreCase) < 0) return false;
-        }
-        if (!b.IsCollideMovement) return false;
+        if (!b.IsCollideMovement || b.shape == null) return false;
+        if (b.shape.IsTerrain() || b.shape.IsSolidCube) return true;
+        var name = b.GetBlockName();
+        return name != null && name.IndexOf(":Cube", StringComparison.OrdinalIgnoreCase) >= 0;
+    }
+
+    // Workbench, chest, another cube, extra terrain — anything you collide with on that face.
+    static bool IsFaceObstructed(World world, Vector3i cell, BlockFace face)
+    {
         var step = HSPortalMath.FaceStep(face);
         var neighbour = new Vector3i(cell.x + step.x, cell.y + step.y, cell.z + step.z);
-        if (world.GetChunkFromWorldPos(neighbour) != null)
-        {
-            var nb = world.GetBlock(neighbour);
-            if (!nb.isair && nb.Block != null && nb.Block.IsCollideMovement && nb.Block.shape != null && !nb.Block.shape.IsTerrain() && nb.Block.shape.IsSolidCube)
-                return false;
-        }
-        return true;
+        if (world.GetChunkFromWorldPos(neighbour) == null) return true;
+        var nb = world.GetBlock(neighbour);
+        if (nb.isair || nb.Block == null) return false;
+        return nb.Block.IsCollideMovement;
     }
 }
