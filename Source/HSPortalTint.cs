@@ -21,7 +21,7 @@ public static class HSPortalTint
             var t = p.inventory.GetHoldingItemTransform();
             if (t == null) return;
             Paint(t.gameObject);
-            if (n == "hsportalGun" || n == "hsportalGelGun") AimGun(t, n == "hsportalGun");
+            if (n == "hsportalGun" || n == "hsportalGelGun") AimGun(t, n == "hsportalGun", p);
         }
         catch { }
     }
@@ -53,8 +53,11 @@ public static class HSPortalTint
     // Rx(-90) puts the barrel on -Z and the grip on -Y; yaw 180 aims +Z. Same call on 3.2 and 3.3.
     static readonly Quaternion PortalHold = Quaternion.Euler(-90f, 180f, 0f);
     static readonly Quaternion GelHold = Quaternion.Euler(0f, 180f, 0f);
+    static readonly Vector3 PortalHoldPosFp = new Vector3(0.05f, -0.1f, 0.22f);
+    static readonly Vector3 PortalHoldPosTp = new Vector3(0f, 0.06f, 0.08f);
+    static readonly Quaternion HubFbx = Quaternion.Euler(90f, 0f, 0f);
 
-    static void AimGun(Transform root, bool portal)
+    static void AimGun(Transform root, bool portal, EntityPlayerLocal p)
     {
         if (root == null) return;
         var hold = root.Find("Hold");
@@ -67,17 +70,57 @@ public static class HSPortalTint
             }
         }
         if (hold == null) return;
+        bool fpv = p == null || p.emodel == null || p.emodel.IsFPV;
+        SeatInHand(root, p, fpv);
         hold.localRotation = portal ? PortalHold : GelHold;
-        // Idle keys claws around EmitterHub +Y (Blender barrel). Hub keeps FBX Rx(90),
-        // so that +Y is Recoil +Z / world up after Hold. Identity puts Hub +Y on Recoil +Y
-        // which Hold maps to +Z — claws around the muzzle. Hub is not in the animator.
-        if (portal) AimEmitterHub(hold);
+        hold.localPosition = fpv ? PortalHoldPosFp : PortalHoldPosTp;
+        // Idle keys claw spin around Blender +Y. Hub keeps FBX Rx(90), so remap that
+        // spin onto Hub +Z (the barrel) after the clip writes. Same on 3.2 and 3.3.
+        if (portal) AimClaws(hold);
     }
 
-    static void AimEmitterHub(Transform hold)
+    static void SeatInHand(Transform root, EntityPlayerLocal p, bool fpv)
+    {
+        if (p == null || p.emodel == null) return;
+        var hand = p.emodel.GetRightHandTransform();
+        if (hand == null) return;
+        if (root.parent != hand)
+            root.SetParent(hand, false);
+        if (fpv)
+        {
+            root.localPosition = Vector3.zero;
+            root.localRotation = Quaternion.identity;
+            return;
+        }
+        var item = p.inventory != null ? p.inventory.holdingItem : null;
+        int ht = item != null && item.HoldType != null ? item.HoldType.Value : 1;
+        var offs = AnimationGunjointOffsetData.AnimationGunjointOffset;
+        if (offs != null && ht >= 0 && ht < offs.Length)
+        {
+            root.localPosition = offs[ht].position;
+            root.localRotation = Quaternion.Euler(offs[ht].rotation);
+        }
+        else
+        {
+            root.localPosition = Vector3.zero;
+            root.localRotation = Quaternion.identity;
+        }
+    }
+
+    static void AimClaws(Transform hold)
     {
         var hub = FindNamed(hold, "EmitterHub");
-        if (hub != null) hub.localRotation = Quaternion.identity;
+        if (hub == null) return;
+        hub.localRotation = HubFbx;
+        for (int i = 0; i < hub.childCount; i++)
+        {
+            var c = hub.GetChild(i);
+            if (c == null) continue;
+            var n = c.name;
+            if (n.Length < 6 || n.IndexOf("Claw_", System.StringComparison.Ordinal) != 0) continue;
+            if (n.IndexOf('_', 5) >= 0) continue;
+            c.localRotation = HubFbx * c.localRotation;
+        }
     }
 
     static Transform FindNamed(Transform root, string name)
