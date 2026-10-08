@@ -54,8 +54,11 @@ public static class HSPortalTint
     static readonly Quaternion PortalHold = Quaternion.Euler(-90f, 180f, 0f);
     static readonly Quaternion GelHold = Quaternion.Euler(0f, 180f, 0f);
     static readonly Vector3 PortalHoldPosFp = new Vector3(0.05f, -0.1f, 0.22f);
-    static readonly Vector3 PortalHoldPosTp = new Vector3(0f, 0.06f, 0.08f);
     static readonly Quaternion HubFbx = Quaternion.Euler(90f, 0f, 0f);
+    static Vector3 tpHoldPos;
+    static bool tpHoldPosReady;
+    static string tpHoldKey;
+    static readonly Vector3 TpPalmNudge = new Vector3(0f, 0.02f, 0.05f);
 
     static void AimGun(Transform root, bool portal, EntityPlayerLocal p)
     {
@@ -73,9 +76,7 @@ public static class HSPortalTint
         bool fpv = p == null || p.emodel == null || p.emodel.IsFPV;
         SeatInHand(root, p, fpv);
         hold.localRotation = portal ? PortalHold : GelHold;
-        hold.localPosition = fpv ? PortalHoldPosFp : PortalHoldPosTp;
-        // Idle keys claw spin around Blender +Y. Hub keeps FBX Rx(90), so remap that
-        // spin onto Hub +Z (the barrel) after the clip writes. Same on 3.2 and 3.3.
+        hold.localPosition = fpv ? PortalHoldPosFp : ThirdPersonHoldPos(hold, portal ? "portal" : "gel");
         if (portal) AimClaws(hold);
     }
 
@@ -107,8 +108,42 @@ public static class HSPortalTint
         }
     }
 
+    static Vector3 ThirdPersonHoldPos(Transform hold, string key)
+    {
+        if (tpHoldPosReady && tpHoldKey == key) return tpHoldPos;
+        hold.localPosition = Vector3.zero;
+        var grip = FindNamed(hold, "Grip");
+        var parent = hold.parent;
+        if (grip == null || parent == null)
+        {
+            tpHoldPos = TpPalmNudge;
+            tpHoldPosReady = true;
+            tpHoldKey = key;
+            return tpHoldPos;
+        }
+        Vector3 world = GripCenter(grip);
+        tpHoldPos = -parent.InverseTransformPoint(world) + TpPalmNudge;
+        tpHoldPosReady = true;
+        tpHoldKey = key;
+        return tpHoldPos;
+    }
+
+    static Vector3 GripCenter(Transform grip)
+    {
+        var mf = grip.GetComponent<MeshFilter>();
+        if (mf != null && mf.sharedMesh != null)
+            return grip.TransformPoint(mf.sharedMesh.bounds.center);
+        var mr = grip.GetComponent<MeshRenderer>();
+        if (mr != null) return mr.bounds.center;
+        return grip.position;
+    }
+
+    // Idle keys Blender Y-spin. Do not multiply that every LateUpdate (it compounds
+    // and the claws wander). Set Hub FBX Rx(90) and park each claw around Hub +Z.
     static void AimClaws(Transform hold)
     {
+        var anim = hold.GetComponentInChildren<Animator>();
+        if (anim != null) anim.enabled = false;
         var hub = FindNamed(hold, "EmitterHub");
         if (hub == null) return;
         hub.localRotation = HubFbx;
@@ -119,7 +154,9 @@ public static class HSPortalTint
             var n = c.name;
             if (n.Length < 6 || n.IndexOf("Claw_", System.StringComparison.Ordinal) != 0) continue;
             if (n.IndexOf('_', 5) >= 0) continue;
-            c.localRotation = HubFbx * c.localRotation;
+            int idx = n[5] - '1';
+            if (idx < 0 || idx > 3) continue;
+            c.localRotation = Quaternion.AngleAxis(idx * 90f, Vector3.forward) * Quaternion.Euler(-6f, 0f, 0f);
         }
     }
 

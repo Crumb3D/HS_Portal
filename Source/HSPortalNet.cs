@@ -46,38 +46,62 @@ public static class HSPortalNet
 
     static Type pkgType;
 
-    static Type PackageType32()
-    {
-        return typeof(NetPackageHSPortal);
-    }
-
     public static void RegisterPackage()
     {
         try
         {
-            var t = HSGameVersion.Is33
-                ? HSGameApi.NetPackageType33("NetPackageHSPortal", typeof(NetPackageHSPortalCore))
-                : PackageType32();
-            pkgType = t;
-            var f = typeof(NetPackageManager).GetField("knownPackageTypes", BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic);
-            if (f == null) return;
-            var dict = f.GetValue(null) as IDictionary;
-            if (dict == null) return;
-            var args = f.FieldType.GetGenericArguments();
-            if (args != null && args.Length >= 1 && args[0] == typeof(string))
-            {
-                if (!dict.Contains(t.Name)) dict[t.Name] = t;
-            }
-            else if (args != null && args.Length >= 1 && args[0] == typeof(Type))
-            {
-                if (!dict.Contains(t)) dict[t] = t.Name;
-            }
-            else if (!dict.Contains(t.Name)) dict[t.Name] = t;
-            HSPortalDebug.Verbose("Registered NetPackageHSPortal");
+            if (HSGameVersion.Is33) Register33();
+            else Register32();
         }
         catch (Exception e)
         {
             HSPortalDebug.Error("Net package register failed", e);
+        }
+    }
+
+    static void Register32()
+    {
+        var t = HSGameApi.NetPackageType32("NetPackageHSPortal", typeof(NetPackageHSPortalCore));
+        pkgType = t;
+        PutKnown(t, false);
+        HSPortalDebug.Verbose("Registered NetPackageHSPortal");
+    }
+
+    static void Register33()
+    {
+        var t = HSGameApi.NetPackageType33("NetPackageHSPortal", typeof(NetPackageHSPortalCore));
+        pkgType = t;
+        PutKnown(t, true);
+        MapEmitted33(t);
+        HSPortalDebug.Verbose("Registered emitted NetPackageHSPortal");
+    }
+
+    static void PutKnown(Type t, bool overwrite)
+    {
+        var f = typeof(NetPackageManager).GetField("knownPackageTypes", BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic);
+        if (f == null) return;
+        var dict = f.GetValue(null) as IDictionary;
+        if (dict == null) return;
+        if (!overwrite && dict.Contains(t.Name)) return;
+        dict[t.Name] = t;
+    }
+
+    static void MapEmitted33(Type t)
+    {
+        var mapF = typeof(NetPackageManager).GetField("packageClassToPackageId", BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic);
+        if (mapF == null) return;
+        var map = mapF.GetValue(null) as IDictionary;
+        if (map == null || map.Contains(t)) return;
+        var arrF = typeof(NetPackageManager).GetField("packageIdToClass", BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic);
+        if (arrF == null) return;
+        var arr = arrF.GetValue(null) as Type[];
+        if (arr == null) return;
+        for (int i = 0; i < arr.Length; i++)
+        {
+            if (arr[i] == null || arr[i] == t || arr[i].Name != t.Name) continue;
+            map[t] = i;
+            arr[i] = t;
+            return;
         }
     }
 
@@ -224,6 +248,7 @@ public static class HSPortalNet
     public static void OnPlayerSpawned(ref ModEvents.SPlayerSpawnedInWorldData data)
     {
         if (!IsAuthority) return;
+        RegisterPackage();
         foreach (var kv in HSPortalWorld.All)
             BroadcastState(kv.Key);
         BroadcastGels();
@@ -477,19 +502,29 @@ public abstract class NetPackageHSPortalCore : NetPackage
 
 }
 
-public sealed class NetPackageHSPortal : NetPackageHSPortalCore
-{
-    public override int GetLength()
-    {
-        return 96;
-    }
-}
-
 [HarmonyPatch(typeof(NetPackageManager), "SetupBaseMapping")]
 public static class HSPortalNetRegister
 {
     static void Postfix()
     {
         HSPortalNet.RegisterPackage();
+    }
+}
+
+[HarmonyPatch(typeof(NetPackageManager), "StartServer")]
+public static class HSPortalNetRegisterServer
+{
+    static void Prefix()
+    {
+        if (HSGameVersion.Is33) HSPortalNet.RegisterPackage();
+    }
+}
+
+[HarmonyPatch(typeof(NetPackageManager), "StartClient")]
+public static class HSPortalNetRegisterClient
+{
+    static void Prefix()
+    {
+        if (HSGameVersion.Is33) HSPortalNet.RegisterPackage();
     }
 }
