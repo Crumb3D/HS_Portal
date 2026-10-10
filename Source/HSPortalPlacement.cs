@@ -65,7 +65,7 @@ public static class HSPortalPlacement
             Spark(hitPos, orange);
             return false;
         }
-        if (IsMetal(world, hitCell))
+        if (IsMetal(world, hitCell) && !HSPortalGel.AllowsPortal(hitCell, face))
         {
             fail = Localization.Get("hsportalDeniedMetal");
             Spark(hitPos, orange);
@@ -288,10 +288,26 @@ public static class HSPortalPlacement
         }
     }
 
+    public static bool TryAimSurface(World world, Ray ray, float range, out Vector3i cell, out BlockFace face, out Vector3 pos)
+    {
+        cell = Vector3i.zero;
+        face = BlockFace.None;
+        pos = Vector3.zero;
+        if (world == null || ray.direction.sqrMagnitude < 0.0001f) return false;
+        var shot = new Ray(ray.origin - ray.direction * 0.12f, ray.direction);
+        if (!Voxel.Raycast(world, shot, range, -555528205, 69, 0f)
+            && !Voxel.Raycast(world, shot, range, false, false))
+            return false;
+        var hit = Voxel.voxelRayHitInfo;
+        if (hit == null || !hit.bHitValid) return false;
+        return ResolveHit(world, hit, out cell, out face, out pos);
+    }
+
     public static bool IsPortalSurface(World world, Vector3i cell, BlockFace face)
     {
         if (!IsLegalFace(world, cell, face)) return false;
-        return !IsMetal(world, cell);
+        if (!IsMetal(world, cell)) return true;
+        return HSPortalGel.AllowsPortal(cell, face);
     }
 
     static bool IsMetal(World world, Vector3i cell)
@@ -370,7 +386,7 @@ public static class HSPortalPlacement
 
     // Workbench / chest / a real cube on the face. Air-density terrain above a
     // road or pad is empty space — do not treat it as a blocker.
-    static bool IsFaceObstructed(World world, Vector3i cell, BlockFace face)
+    public static bool IsFaceObstructed(World world, Vector3i cell, BlockFace face)
     {
         var step = HSPortalMath.FaceStep(face);
         var neighbour = new Vector3i(cell.x + step.x, cell.y + step.y, cell.z + step.z);

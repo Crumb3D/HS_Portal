@@ -3,11 +3,26 @@ using System.Collections.Generic;
 using System.IO;
 using UnityEngine;
 
+public class HSPortalGelSplat
+{
+    public Vector3 Center;
+    public Vector3 Normal;
+    public Vector3i Cell;
+    public BlockFace Face;
+    public byte Color;
+    public float Radius;
+    public int Seed;
+}
+
 public static class HSPortalGel
 {
+    public const byte None = 0;
     public const byte Blue = 1;
     public const byte Orange = 2;
+    public const byte White = 3;
+    public const byte Cleanse = 4;
     public const float PaintRange = 12f;
+    public const float SplatRadius = 1.08f;
     public const float SpeedMul = 2.8f;
     public const float BounceMin = 2.4f;
     public const float BounceImpact = 8f;
@@ -21,118 +36,180 @@ public static class HSPortalGel
     static Vector3 orangeRetain;
     static float wallLock;
 
-    struct Key : IEquatable<Key>
-    {
-        public int X, Y, Z;
-        public byte Face;
-        public Key(Vector3i p, BlockFace f)
-        {
-            X = p.x; Y = p.y; Z = p.z; Face = (byte)f;
-        }
-        public Vector3i Pos { get { return new Vector3i(X, Y, Z); } }
-        public BlockFace BlockFace { get { return (BlockFace)Face; } }
-        public bool Equals(Key other) { return X == other.X && Y == other.Y && Z == other.Z && Face == other.Face; }
-        public override bool Equals(object obj) { return obj is Key && Equals((Key)obj); }
-        public override int GetHashCode() { return X * 73856093 ^ Y * 19349663 ^ Z * 83492791 ^ (Face * 17); }
-    }
-
-    static readonly Dictionary<Key, byte> painted = new Dictionary<Key, byte>();
+    static readonly List<HSPortalGelSplat> splats = new List<HSPortalGelSplat>();
     static bool loaded;
     static string loadedPath;
     static bool wasGrounded;
     static float lastFall;
     static float nextPrune;
 
-    public static IEnumerable<KeyValuePair<Vector3i, KeyValuePair<BlockFace, byte>>> All
+    public static IEnumerable<HSPortalGelSplat> All
     {
-        get
-        {
-            foreach (var kv in painted)
-                yield return new KeyValuePair<Vector3i, KeyValuePair<BlockFace, byte>>(
-                    kv.Key.Pos, new KeyValuePair<BlockFace, byte>(kv.Key.BlockFace, kv.Value));
-        }
+        get { return splats; }
     }
 
-    public static int Count { get { return painted.Count; } }
+    public static int Count { get { return splats.Count; } }
 
     public static byte Get(Vector3i pos, BlockFace face)
     {
-        byte c;
-        return painted.TryGetValue(new Key(pos, face), out c) ? c : (byte)0;
+        var fc = HSPortalMath.FaceCenter(pos, face);
+        var fn = HSPortalMath.FaceNormal(face);
+        byte best = None;
+        float bestD = 999f;
+        for (int i = 0; i < splats.Count; i++)
+        {
+            var s = splats[i];
+            if (s == null || s.Color == None) continue;
+            if (Vector3.Dot(s.Normal, fn) < 0.72f) continue;
+            float along = Mathf.Abs(Vector3.Dot(s.Center - fc, fn));
+            if (along > 0.6f) continue;
+            float d = Vector3.ProjectOnPlane(s.Center - fc, fn).magnitude;
+            if (d > s.Radius + 0.52f) continue;
+            if (d < bestD)
+            {
+                bestD = d;
+                best = s.Color;
+            }
+        }
+        return best;
     }
 
-    public static bool Paint(World world, Vector3i pos, BlockFace face, byte color)
+    public static bool AllowsPortal(Vector3i pos, BlockFace face)
     {
-        if (world == null || color == 0) return false;
-        if (!HSPortalPlacement.IsLegalFace(world, pos, face)) return false;
-        var key = new Key(pos, face);
-        painted[key] = color;
-        HSPortalGelVisual.Upsert(key.Pos, key.BlockFace, color);
-        return true;
+        return Get(pos, face) == White;
     }
 
-    public static bool PaintLook(World world, EntityPlayer player, bool orange, out string fail)
+    public static bool PaintLook(World world, EntityPlayer player, byte color, out string fail)
     {
         fail = Localization.Get("hsportalGelDenied");
         if (world == null || player == null) return false;
         Ray ray;
         try { ray = player.GetLookRay(); }
         catch { return false; }
-        return PaintRay(world, ray, orange ? Orange : Blue, out fail);
+        return PaintRay(world, ray, color, out fail);
     }
 
     public static bool PaintRay(World world, Ray ray, byte color, out string fail)
     {
         fail = Localization.Get("hsportalGelDenied");
-        if (world == null || ray.direction.sqrMagnitude < 0.0001f) return false;
-        if (!Voxel.Raycast(world, ray, PaintRange, false, false)) return false;
-        var hit = Voxel.voxelRayHitInfo;
-        if (hit == null || !hit.bHitValid) return false;
-        var face = hit.hit.blockFace;
-        var seed = hit.hit.blockPos;
-        int n = 0;
-        if (Paint(world, seed, face, color)) n++;
-        var right = HSPortalMath.FaceRight(face);
-        var up = HSPortalMath.FaceUp(face);
-        var around = new Vector3i[]
+        if (world == null || color == None || ray.direction.sqrMagnitude < 0.0001f) return false;
+        Vector3i cell;
+        BlockFace face;
+        Vector3 pos;
+        if (!HSPortalPlacement.TryAimSurface(world, ray, PaintRange, out cell, out face, out pos))
+            return false;
+        if (color == Cleanse)
         {
-            seed + right, seed - right, seed + up, seed - up
-        };
-        for (int i = 0; i < around.Length; i++)
-        {
-            if (Paint(world, around[i], face, color)) n++;
+            if (CleanseAt(pos, SplatRadius + 0.35f) <= 0) return false;
+            fail = null;
+            return true;
         }
-        if (n == 0) return false;
+        if (!CanCoat(world, cell)) return false;
+        AddSplat(pos, HSPortalMath.FaceNormal(face), cell, face, color);
         fail = null;
         return true;
     }
 
-    public static void ClearAll()
+    static bool CanCoat(World world, Vector3i cell)
     {
-        painted.Clear();
-        HSPortalGelVisual.DestroyAll();
+        if (world == null) return false;
+        if (world.GetChunkFromWorldPos(cell) == null) return false;
+        var bv = world.GetBlock(cell);
+        if (bv.isair || bv.Block == null) return false;
+        return bv.Block.IsCollideMovement;
     }
 
-    public static void ReplaceAll(List<Vector3i> cells, List<byte> faces, List<byte> colors)
+    static void AddSplat(Vector3 center, Vector3 normal, Vector3i cell, BlockFace face, byte color)
     {
-        painted.Clear();
-        if (cells == null) { HSPortalGelVisual.RebuildAll(); return; }
-        int n = Math.Min(cells.Count, Math.Min(faces.Count, colors.Count));
-        for (int i = 0; i < n; i++)
-            painted[new Key(cells[i], (BlockFace)faces[i])] = colors[i];
+        if (normal.sqrMagnitude < 0.0001f) normal = HSPortalMath.FaceNormal(face);
+        normal.Normalize();
+        center += normal * 0.03f;
+        for (int i = splats.Count - 1; i >= 0; i--)
+        {
+            var s = splats[i];
+            if (s == null) continue;
+            if (Vector3.Dot(s.Normal, normal) < 0.72f) continue;
+            if ((s.Center - center).sqrMagnitude > (s.Radius * 0.7f) * (s.Radius * 0.7f)) continue;
+            splats.RemoveAt(i);
+        }
+        var splat = new HSPortalGelSplat();
+        splat.Center = center;
+        splat.Normal = normal;
+        splat.Cell = cell;
+        splat.Face = face;
+        splat.Color = color;
+        splat.Radius = SplatRadius;
+        splat.Seed = (cell.x * 73856093) ^ (cell.y * 19349663) ^ (cell.z * 83492791) ^ ((int)face * 17) ^ (color * 31) ^ Time.frameCount;
+        splats.Add(splat);
         HSPortalGelVisual.RebuildAll();
     }
 
-    public static void Snapshot(out List<Vector3i> cells, out List<byte> faces, out List<byte> colors)
+    public static int CleanseAt(Vector3 worldPos, float radius)
     {
-        cells = new List<Vector3i>(painted.Count);
-        faces = new List<byte>(painted.Count);
-        colors = new List<byte>(painted.Count);
-        foreach (var kv in painted)
+        int n = 0;
+        float r2 = radius * radius;
+        for (int i = splats.Count - 1; i >= 0; i--)
         {
-            cells.Add(kv.Key.Pos);
-            faces.Add(kv.Key.Face);
-            colors.Add(kv.Value);
+            var s = splats[i];
+            if (s == null) continue;
+            if ((s.Center - worldPos).sqrMagnitude > r2) continue;
+            splats.RemoveAt(i);
+            n++;
+        }
+        if (n > 0) HSPortalGelVisual.RebuildAll();
+        return n;
+    }
+
+    public static void ClearAll()
+    {
+        splats.Clear();
+        HSPortalGelVisual.DestroyAll();
+    }
+
+    public static void ReplaceAll(List<Vector3i> cells, List<byte> faces, List<byte> colors, List<Vector3> centers, List<float> radii, List<int> seeds)
+    {
+        splats.Clear();
+        if (cells == null)
+        {
+            HSPortalGelVisual.RebuildAll();
+            return;
+        }
+        int n = cells.Count;
+        if (faces != null) n = Math.Min(n, faces.Count);
+        if (colors != null) n = Math.Min(n, colors.Count);
+        for (int i = 0; i < n; i++)
+        {
+            var s = new HSPortalGelSplat();
+            s.Cell = cells[i];
+            s.Face = (BlockFace)faces[i];
+            s.Color = colors[i];
+            s.Normal = HSPortalMath.FaceNormal(s.Face);
+            s.Center = centers != null && i < centers.Count ? centers[i] : HSPortalMath.FaceCenter(s.Cell, s.Face) + s.Normal * 0.03f;
+            s.Radius = radii != null && i < radii.Count && radii[i] > 0.1f ? radii[i] : SplatRadius;
+            s.Seed = seeds != null && i < seeds.Count ? seeds[i] : s.Cell.GetHashCode() ^ (int)s.Face;
+            if (s.Color != None) splats.Add(s);
+        }
+        HSPortalGelVisual.RebuildAll();
+    }
+
+    public static void Snapshot(out List<Vector3i> cells, out List<byte> faces, out List<byte> colors, out List<Vector3> centers, out List<float> radii, out List<int> seeds)
+    {
+        cells = new List<Vector3i>(splats.Count);
+        faces = new List<byte>(splats.Count);
+        colors = new List<byte>(splats.Count);
+        centers = new List<Vector3>(splats.Count);
+        radii = new List<float>(splats.Count);
+        seeds = new List<int>(splats.Count);
+        for (int i = 0; i < splats.Count; i++)
+        {
+            var s = splats[i];
+            if (s == null) continue;
+            cells.Add(s.Cell);
+            faces.Add((byte)s.Face);
+            colors.Add(s.Color);
+            centers.Add(s.Center);
+            radii.Add(s.Radius);
+            seeds.Add(s.Seed);
         }
     }
 
@@ -140,24 +217,59 @@ public static class HSPortalGel
     {
         EnsureLoaded();
         if (Time.unscaledTime < nextPrune) { PhysicsLocal(); return; }
-        nextPrune = Time.unscaledTime + 0.45f;
+        nextPrune = Time.unscaledTime + 0.35f;
         if (!HSPortalNet.IsAuthority) { PhysicsLocal(); return; }
         var world = GameManager.Instance != null ? GameManager.Instance.World : null;
         if (world == null) { PhysicsLocal(); return; }
-        var drop = new List<Key>();
-        foreach (var kv in painted)
+        bool changed = false;
+        for (int i = splats.Count - 1; i >= 0; i--)
         {
-            var pos = kv.Key.Pos;
-            if (world.GetChunkFromWorldPos(pos) == null) continue;
-            if (!HSPortalPlacement.IsLegalFace(world, pos, kv.Key.BlockFace)) drop.Add(kv.Key);
+            var s = splats[i];
+            if (s == null) { splats.RemoveAt(i); changed = true; continue; }
+            if (world.GetChunkFromWorldPos(s.Cell) == null) continue;
+            if (!CanCoat(world, s.Cell))
+            {
+                splats.RemoveAt(i);
+                changed = true;
+                continue;
+            }
+            if (WaterTouches(world, s))
+            {
+                splats.RemoveAt(i);
+                changed = true;
+            }
         }
-        for (int i = 0; i < drop.Count; i++)
+        if (changed)
         {
-            painted.Remove(drop[i]);
-            HSPortalGelVisual.Remove(drop[i].Pos, drop[i].BlockFace);
+            HSPortalGelVisual.RebuildAll();
+            HSPortalNet.BroadcastGels();
         }
-        if (drop.Count > 0) HSPortalNet.BroadcastGels();
         PhysicsLocal();
+    }
+
+    static bool WaterTouches(World world, HSPortalGelSplat s)
+    {
+        if (HasWater(world, s.Cell)) return true;
+        var step = HSPortalMath.FaceStep(s.Face);
+        if (HasWater(world, new Vector3i(s.Cell.x + step.x, s.Cell.y + step.y, s.Cell.z + step.z))) return true;
+        var around = HSPortalMath.WorldToCell(s.Center);
+        if (HasWater(world, around)) return true;
+        if (HasWater(world, new Vector3i(around.x + step.x, around.y + step.y, around.z + step.z))) return true;
+        return false;
+    }
+
+    static bool HasWater(World world, Vector3i pos)
+    {
+        if (world == null) return false;
+        try
+        {
+            var w = world.GetWater(pos);
+            return w.HasMass();
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     public static void IgnoreUntil(float unscaled)
@@ -183,7 +295,7 @@ public static class HSPortalGel
         }
         var cell = FootCell(player.position);
         byte top = Get(cell, BlockFace.Top);
-        if (top == 0) top = Get(new Vector3i(cell.x, cell.y - 1, cell.z), BlockFace.Top);
+        if (top == None) top = Get(new Vector3i(cell.x, cell.y - 1, cell.z), BlockFace.Top);
         bool crouched = player.IsCrouching;
 
         if (top == Orange && grounded)
@@ -195,9 +307,9 @@ public static class HSPortalGel
             float mag = Mathf.Sqrt(t.x * t.x + t.z * t.z);
             if (mag > OrangeCap)
             {
-                float s = OrangeCap / mag;
-                t.x *= s;
-                t.z *= s;
+                float sc = OrangeCap / mag;
+                t.x *= sc;
+                t.z *= sc;
             }
             fp.m_MotorThrottle = t;
             orangeRetain = new Vector3(t.x, 0f, t.z);
@@ -276,6 +388,15 @@ public static class HSPortalGel
 
     static void PhysicsLocal() { }
 
+    public static string ColorName(byte color)
+    {
+        if (color == Orange) return "orange";
+        if (color == White) return "white";
+        if (color == Blue) return "blue";
+        if (color == Cleanse) return "cleanse";
+        return "gel";
+    }
+
     public static void Save()
     {
         try
@@ -288,15 +409,21 @@ public static class HSPortalGel
             using (var bw = new BinaryWriter(fs))
             {
                 bw.Write(0x4853474C);
-                bw.Write(1);
-                bw.Write(painted.Count);
-                foreach (var kv in painted)
+                bw.Write(2);
+                bw.Write(splats.Count);
+                for (int i = 0; i < splats.Count; i++)
                 {
-                    bw.Write(kv.Key.X);
-                    bw.Write(kv.Key.Y);
-                    bw.Write(kv.Key.Z);
-                    bw.Write(kv.Key.Face);
-                    bw.Write(kv.Value);
+                    var s = splats[i];
+                    bw.Write(s.Cell.x);
+                    bw.Write(s.Cell.y);
+                    bw.Write(s.Cell.z);
+                    bw.Write((byte)s.Face);
+                    bw.Write(s.Color);
+                    bw.Write(s.Center.x);
+                    bw.Write(s.Center.y);
+                    bw.Write(s.Center.z);
+                    bw.Write(s.Radius);
+                    bw.Write(s.Seed);
                 }
             }
             loadedPath = path;
@@ -320,17 +447,36 @@ public static class HSPortalGel
             using (var br = new BinaryReader(fs))
             {
                 if (br.ReadInt32() != 0x4853474C) return;
-                br.ReadInt32();
+                int ver = br.ReadInt32();
                 int n = br.ReadInt32();
-                painted.Clear();
+                splats.Clear();
                 for (int i = 0; i < n && i < 8192; i++)
                 {
-                    var k = new Key(new Vector3i(br.ReadInt32(), br.ReadInt32(), br.ReadInt32()), (BlockFace)br.ReadByte());
-                    painted[k] = br.ReadByte();
+                    var cell = new Vector3i(br.ReadInt32(), br.ReadInt32(), br.ReadInt32());
+                    var face = (BlockFace)br.ReadByte();
+                    byte color = br.ReadByte();
+                    var s = new HSPortalGelSplat();
+                    s.Cell = cell;
+                    s.Face = face;
+                    s.Color = color;
+                    s.Normal = HSPortalMath.FaceNormal(face);
+                    if (ver >= 2)
+                    {
+                        s.Center = new Vector3(br.ReadSingle(), br.ReadSingle(), br.ReadSingle());
+                        s.Radius = br.ReadSingle();
+                        s.Seed = br.ReadInt32();
+                    }
+                    else
+                    {
+                        s.Center = HSPortalMath.FaceCenter(cell, face) + s.Normal * 0.03f;
+                        s.Radius = SplatRadius;
+                        s.Seed = cell.GetHashCode() ^ (int)face;
+                    }
+                    if (s.Color != None) splats.Add(s);
                 }
             }
             HSPortalGelVisual.RebuildAll();
-            HSPortalDebug.Info("Loaded " + painted.Count + " gel faces");
+            HSPortalDebug.Info("Loaded " + splats.Count + " gel splats");
         }
         catch (Exception e)
         {
@@ -342,9 +488,9 @@ public static class HSPortalGel
     {
         try
         {
-                var save = GameIO.GetSaveGameDir();
-                if (string.IsNullOrEmpty(save)) return null;
-                return Path.Combine(save, "hsportal_gels.bin");
+            var save = GameIO.GetSaveGameDir();
+            if (string.IsNullOrEmpty(save)) return null;
+            return Path.Combine(save, "hsportal_gels.bin");
         }
         catch
         {

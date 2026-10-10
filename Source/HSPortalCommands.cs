@@ -24,7 +24,7 @@ public class ConsoleCmdHSPortal : ConsoleCmdAbstract
             "hsportal give [name]          - portal gun, gel gun, 32 goo, cube, long-fall boots\n" +
             "hsportal room [name]          - concrete chamber around you, then give the kit\n" +
             "hsportal blue | orange        - place that colour portal on the aimed surface\n" +
-            "hsportal gel blue|orange      - spray that gel on the aimed face\n" +
+            "hsportal gel blue|orange|white|clean - spray gel or wash the aimed splat\n" +
             "hsportal clear                - remove your portals\n" +
             "hsportal status | debug";
     }
@@ -41,7 +41,7 @@ public class ConsoleCmdHSPortal : ConsoleCmdAbstract
                 var color = _params[1].ToLowerInvariant();
                 who = _params.Count > 2 ? _params[2] : "";
                 var gelPlayer = ResolvePlayer(world, _senderInfo, who);
-                Out(Gel(world, gelPlayer, color == "orange" || color == "o", who));
+                Out(Gel(world, gelPlayer, color, who));
                 return;
             }
             var player = ResolvePlayer(world, _senderInfo, who);
@@ -184,20 +184,24 @@ public class ConsoleCmdHSPortal : ConsoleCmdAbstract
         return false;
     }
 
-    static string Gel(World world, EntityPlayer player, bool orange, string who)
+    static string Gel(World world, EntityPlayer player, string color, string who)
     {
         if (player == null || world == null) return NeedPlayer(who);
+        byte c = HSPortalGel.Blue;
+        if (color == "orange" || color == "o") c = HSPortalGel.Orange;
+        else if (color == "white" || color == "w" || color == "conversion") c = HSPortalGel.White;
+        else if (color == "clean" || color == "cleanse" || color == "water" || color == "wash") c = HSPortalGel.Cleanse;
         if (HSPortalNet.IsRemoteClient)
         {
             var local = player as EntityPlayerLocal;
             if (local == null) return "Spray from your own F1 console.";
-            HSPortalNet.SendGelPaint(local, orange);
-            return "Requested " + (orange ? "orange" : "blue") + " gel.";
+            HSPortalNet.SendGelPaint(local, c);
+            return "Requested " + HSPortalGel.ColorName(c) + " gel.";
         }
         string fail;
-        if (!HSPortalGel.PaintLook(world, player, orange, out fail)) return fail ?? Localization.Get("hsportalGelDenied");
+        if (!HSPortalGel.PaintLook(world, player, c, out fail)) return fail ?? Localization.Get(c == HSPortalGel.Cleanse ? "hsportalGelCleansedNone" : "hsportalGelDenied");
         HSPortalNet.BroadcastGels();
-        return Localization.Get(orange ? "hsportalGelOrange" : "hsportalGelBlue");
+        return ItemActionHSPortalGelGun.GelTip(c);
     }
 
     static string BuildRoom(World world, EntityPlayer player, string who)
@@ -249,7 +253,7 @@ public class ConsoleCmdHSPortal : ConsoleCmdAbstract
             local.vp_FPController.SetPosition(stand - Origin.position);
         Give(player, who);
         HSPortalDebug.Info("Test room at " + new Vector3i(cx, fy, cz) + " block=" + block.GetBlockName() + " player=" + player.EntityName + " changes=" + changes.Count);
-        return "Built concrete test room for " + player.EntityName + " (" + changes.Count + " blocks) and gave the kit. Portal gun: left blue / right orange. Gel gun: left bounce / right speed.";
+        return "Built concrete test room for " + player.EntityName + " (" + changes.Count + " blocks) and gave the kit. Portal gun: left blue / right orange. Gel gun: left bounce / right speed / MMB white. Dump water to wash gel off.";
     }
 
     static Block FindCube()

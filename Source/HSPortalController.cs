@@ -9,6 +9,7 @@ public class HSPortalController : MonoBehaviour
     {
         public EntityPlayerLocal player;
         public bool orange;
+        public byte gelColor;
         public float at;
         public bool gel;
     }
@@ -34,13 +35,13 @@ public class HSPortalController : MonoBehaviour
         });
     }
 
-    public static void QueueGel(EntityPlayerLocal player, bool orange, float delay)
+    public static void QueueGel(EntityPlayerLocal player, byte color, float delay)
     {
         EnsureCreated();
         instance.pending.Add(new PendingShot
         {
             player = player,
-            orange = orange,
+            gelColor = color,
             at = Time.time + delay,
             gel = true
         });
@@ -65,7 +66,7 @@ public class HSPortalController : MonoBehaviour
                 pending.RemoveAt(i);
                 try
                 {
-                    if (p.gel) ItemActionHSPortalGelGun.Fire(p.player, p.orange);
+                    if (p.gel) ItemActionHSPortalGelGun.Fire(p.player, p.gelColor);
                     else ItemActionHSPortalGun.Fire(p.player, p.orange);
                 }
                 catch (System.Exception e) { HSPortalDebug.Error("Queued fire failed", e); }
@@ -74,6 +75,7 @@ public class HSPortalController : MonoBehaviour
             HSPortalGel.Tick();
             HSPortalTeleporter.Tick();
             ItemActionHSPortalGun.PollClear();
+            ItemActionHSPortalGelGun.PollWhite();
         }
         catch (System.Exception e)
         {

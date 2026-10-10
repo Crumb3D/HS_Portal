@@ -2,7 +2,7 @@
 
 Survival-styled portal gun, gel, weighted cube, and long-fall boots for **7 Days to Die 3.2 and 3.3**. Portal 2 is a behaviour reference only — no Valve meshes.
 
-The held gun is an original industrial 7DTD weapon (claws, blue/orange coils, DANGER pack) built from `portal Gun Design.png`. **Version 0.3.13.**
+The held gun is an original industrial 7DTD weapon (claws, blue/orange coils, DANGER pack) built from `portal Gun Design.png`. **Version 0.3.15.**
 
 License: [MIT](LICENSE). Author: Crumb.
 
@@ -34,20 +34,21 @@ Creative menu still has everything. Admin `hsportal give` dumps the whole kit.
 
 **Portal gun** — left click blue, right click orange, **middle click** fizzles both. The HUD sits top-left and lights the colours that are currently out; the bar between them lights when the pair is linked. Placed portals also show on the compass in their colour. Speed in equals speed out — players, zombies, thrown items, and shots are not boosted.
 
-**Gel gun** — craft **Repulsion/Propulsion Goo** (paint, scrap polymers, acid) and reload with R. The ammo widget on the right of the HUD shows the magazine. Left click blue bounce gel, right click orange speed gel.
+**Gel gun** — craft **Repulsion/Propulsion Goo** (paint, scrap polymers, acid) and reload with R. The ammo widget on the right of the HUD shows the magazine. Left click blue bounce gel, right click orange speed gel, **middle click** white conversion gel. Gel splurges as a puddle on the face you hit (floors, walls, ceilings, crates) and a new colour replaces the old one on that splat. White gel lets a portal sit on metal if the remaining geometry rules still pass (two solid blocks, clear face). **Dump a water jar or bucket** on a puddle to wash only the coating the water reaches — bounce, speed, and conversion all stop on the cleansed area.
 
 **Long-fall boots** — feet slot. Worn look is the vanilla Biker/rocket-boot mesh (same SDCS feet as `rocketBootsAdmin`). Light-armor protection, durability, and a small run-speed bonus while worn. Fall damage is ignored only while they are equipped.
 
 **Weighted cube** — placeable scrap-steel crate. Diffuse, displacement, and glow maps drive the faces; the heart lights. E to pick up.
 
-Valid surfaces: full non-terrain cubes (walls, floors, ceilings). Terrain, plants, wedges, doors, and plates reject.
+Valid surfaces: full non-terrain cubes (walls, floors, ceilings). Terrain, plants, wedges, doors, and plates reject. Metal rejects unless that face is coated with white conversion gel.
 
 Admin console (`hsportal`):
 
 - `hsportal give` — portal gun, gel gun, 32 goo, cube, boots
 - `hsportal room` — concrete test chamber around you, then gives the kit
 - `hsportal blue` / `hsportal orange` — place that portal colour on the aimed surface
-- `hsportal gel blue` / `hsportal gel orange` — spray gel on the aimed face
+- `hsportal gel blue` / `hsportal gel orange` / `hsportal gel white` — spray gel on the aimed face
+- `hsportal gel clean` — wash gel off the aimed splat
 - `hsportal clear` — remove your portals
 - `hsportal status`
 - `hsportal debug`

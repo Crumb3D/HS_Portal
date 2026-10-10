@@ -2,8 +2,8 @@
 <xml>
   <Name value="HSPortal" />
   <DisplayName value="HS Portal" />
-  <Description value="Portal gun, gel gun (bounce / speed), weighted cube, long-fall boots. Admin: hsportal" />
+  <Description value="Portal gun, gel gun (bounce / speed / conversion), weighted cube, long-fall boots. Admin: hsportal" />
   <Author value="Crumb" />
-  <Version value="0.3.14" />
+  <Version value="0.3.15" />
   <SkipWithAntiCheat value="true" />
 </xml>

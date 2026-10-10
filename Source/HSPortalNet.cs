@@ -207,11 +207,11 @@ public static class HSPortalNet
         }
     }
 
-    public static void SendGelPaint(EntityPlayerLocal player, bool orange)
+    public static void SendGelPaint(EntityPlayerLocal player, byte color)
     {
         if (player == null) return;
         var ray = player.GetLookRay();
-        ToServer(Pkg().OfGelPaint(player.entityId, orange, ray.origin, ray.direction));
+        ToServer(Pkg().OfGelPaint(player.entityId, color, ray.origin, ray.direction));
     }
 
     public static void BroadcastGels()
@@ -220,29 +220,33 @@ public static class HSPortalNet
         List<Vector3i> cells;
         List<byte> faces;
         List<byte> colors;
-        HSPortalGel.Snapshot(out cells, out faces, out colors);
-        ToClients(Pkg().OfGelState(cells, faces, colors));
+        List<Vector3> centers;
+        List<float> radii;
+        List<int> seeds;
+        HSPortalGel.Snapshot(out cells, out faces, out colors, out centers, out radii, out seeds);
+        ToClients(Pkg().OfGelState(cells, faces, colors, centers, radii, seeds));
     }
 
-    public static void HandleGelPaint(int ownerId, bool orange, Vector3 origin, Vector3 dir)
+    public static void HandleGelPaint(int ownerId, byte color, Vector3 origin, Vector3 dir)
     {
         if (!IsAuthority) return;
         var world = GameManager.Instance != null ? GameManager.Instance.World : null;
         if (world == null) return;
         string fail;
-        if (!HSPortalGel.PaintRay(world, new Ray(origin, dir), orange ? HSPortalGel.Orange : HSPortalGel.Blue, out fail))
+        if (color == 0) color = HSPortalGel.Blue;
+        if (!HSPortalGel.PaintRay(world, new Ray(origin, dir), color, out fail))
         {
             TellOwner(ownerId, fail);
             return;
         }
         BroadcastGels();
-        TellOwner(ownerId, Localization.Get(orange ? "hsportalGelOrange" : "hsportalGelBlue"));
+        TellOwner(ownerId, ItemActionHSPortalGelGun.GelTip(color));
     }
 
-    public static void HandleGelState(List<Vector3i> cells, List<byte> faces, List<byte> colors)
+    public static void HandleGelState(List<Vector3i> cells, List<byte> faces, List<byte> colors, List<Vector3> centers, List<float> radii, List<int> seeds)
     {
         if (IsAuthority) return;
-        HSPortalGel.ReplaceAll(cells, faces, colors);
+        HSPortalGel.ReplaceAll(cells, faces, colors, centers, radii, seeds);
     }
 
     public static void OnPlayerSpawned(ref ModEvents.SPlayerSpawnedInWorldData data)
@@ -302,6 +306,9 @@ public abstract class NetPackageHSPortalCore : NetPackage
     protected List<Vector3i> gelCells;
     protected List<byte> gelFaces;
     protected List<byte> gelColors;
+    protected List<Vector3> gelCenters;
+    protected List<float> gelRadii;
+    protected List<int> gelSeeds;
     protected string text = "";
 
     public override NetPackageDirection PackageDirection { get { return NetPackageDirection.Both; } }
@@ -343,22 +350,26 @@ public abstract class NetPackageHSPortalCore : NetPackage
         return this;
     }
 
-    public NetPackageHSPortalCore OfGelPaint(int owner, bool isOrange, Vector3 origin, Vector3 dir)
+    public NetPackageHSPortalCore OfGelPaint(int owner, byte color, Vector3 origin, Vector3 dir)
     {
         kind = HSPortalNet.GelPaint;
         ownerId = owner;
-        orange = isOrange;
+        orange = color == HSPortalGel.Orange;
         a = origin;
         b = dir;
+        c = new Vector3(color, 0f, 0f);
         return this;
     }
 
-    public NetPackageHSPortalCore OfGelState(List<Vector3i> cells, List<byte> faces, List<byte> colors)
+    public NetPackageHSPortalCore OfGelState(List<Vector3i> cells, List<byte> faces, List<byte> colors, List<Vector3> centers, List<float> radii, List<int> seeds)
     {
         kind = HSPortalNet.GelState;
         gelCells = cells;
         gelFaces = faces;
         gelColors = colors;
+        gelCenters = centers;
+        gelRadii = radii;
+        gelSeeds = seeds;
         return this;
     }
 
@@ -386,11 +397,17 @@ public abstract class NetPackageHSPortalCore : NetPackage
         gelCells = new List<Vector3i>(gn);
         gelFaces = new List<byte>(gn);
         gelColors = new List<byte>(gn);
+        gelCenters = new List<Vector3>(gn);
+        gelRadii = new List<float>(gn);
+        gelSeeds = new List<int>(gn);
         for (int i = 0; i < gn; i++)
         {
             gelCells.Add(new Vector3i(br.ReadInt32(), br.ReadInt32(), br.ReadInt32()));
             gelFaces.Add(br.ReadByte());
             gelColors.Add(br.ReadByte());
+            gelCenters.Add(new Vector3(br.ReadSingle(), br.ReadSingle(), br.ReadSingle()));
+            gelRadii.Add(br.ReadSingle());
+            gelSeeds.Add(br.ReadInt32());
         }
     }
 
@@ -417,6 +434,10 @@ public abstract class NetPackageHSPortalCore : NetPackage
             bw.Write(gelCells[i].z);
             bw.Write(gelFaces[i]);
             bw.Write(gelColors[i]);
+            var ctr = gelCenters != null && i < gelCenters.Count ? gelCenters[i] : Vector3.zero;
+            bw.Write(ctr.x); bw.Write(ctr.y); bw.Write(ctr.z);
+            bw.Write(gelRadii != null && i < gelRadii.Count ? gelRadii[i] : HSPortalGel.SplatRadius);
+            bw.Write(gelSeeds != null && i < gelSeeds.Count ? gelSeeds[i] : 0);
         }
     }
 
@@ -487,10 +508,14 @@ public abstract class NetPackageHSPortalCore : NetPackage
                     HSPortalNet.TellLocal(text);
                     break;
                 case HSPortalNet.GelPaint:
-                    HSPortalNet.HandleGelPaint(ownerId, orange, a, b);
+                    {
+                        byte color = (byte)Mathf.Round(c.x);
+                        if (color == 0) color = orange ? HSPortalGel.Orange : HSPortalGel.Blue;
+                        HSPortalNet.HandleGelPaint(ownerId, color, a, b);
+                    }
                     break;
                 case HSPortalNet.GelState:
-                    HSPortalNet.HandleGelState(gelCells, gelFaces, gelColors);
+                    HSPortalNet.HandleGelState(gelCells, gelFaces, gelColors, gelCenters, gelRadii, gelSeeds);
                     break;
             }
         }

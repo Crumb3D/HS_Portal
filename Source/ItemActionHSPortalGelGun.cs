@@ -44,13 +44,13 @@ public class ItemActionHSPortalGelGun : ItemActionRanged
             }
             _actionData.lastUseTime = Time.time;
             ConsumeAmmo(_actionData);
-            bool orange = _actionData.indexInEntityOfAction == 1;
+            byte color = _actionData.indexInEntityOfAction == 1 ? HSPortalGel.Orange : HSPortalGel.Blue;
             ItemActionHSPortalGun.PlayGunAnim(_actionData, "Fire");
             ItemActionHSPortalGun.PlayAvatarFire(holding);
             try { Audio.Manager.Play(holding, "paint_spray"); } catch { try { Audio.Manager.Play(holding, "pistol_fire"); } catch { } }
             var local = holding as EntityPlayerLocal ?? ItemActionHSPortalGun.LocalPlayer();
-            if (local != null) HSPortalController.QueueGel(local, orange, FireDelay);
-            else Fire(holding, orange);
+            if (local != null) HSPortalController.QueueGel(local, color, FireDelay);
+            else Fire(holding, color);
         }
         catch (Exception e)
         {
@@ -58,19 +58,20 @@ public class ItemActionHSPortalGelGun : ItemActionRanged
         }
     }
 
-    public static void Fire(EntityPlayer player, bool orange)
+    public static void Fire(EntityPlayer player, byte color)
     {
         if (player == null) return;
         var world = GameManager.Instance != null ? GameManager.Instance.World : null;
         if (world == null) return;
+        if (color == 0) color = HSPortalGel.Blue;
         if (HSPortalNet.IsRemoteClient)
         {
             var local = player as EntityPlayerLocal;
-            if (local != null) HSPortalNet.SendGelPaint(local, orange);
+            if (local != null) HSPortalNet.SendGelPaint(local, color);
             return;
         }
         string fail;
-        if (!HSPortalGel.PaintLook(world, player, orange, out fail))
+        if (!HSPortalGel.PaintLook(world, player, color, out fail))
         {
             var local = player as EntityPlayerLocal;
             if (local != null) ItemActionHSPortalGun.Deny(local, fail);
@@ -78,7 +79,82 @@ public class ItemActionHSPortalGelGun : ItemActionRanged
         }
         HSPortalNet.BroadcastGels();
         var tell = player as EntityPlayerLocal;
-        if (tell != null) GameManager.ShowTooltip(tell, Localization.Get(orange ? "hsportalGelOrange" : "hsportalGelBlue"));
+        if (tell != null) GameManager.ShowTooltip(tell, GelTip(color));
+    }
+
+    public static bool IsHolding(EntityPlayerLocal player)
+    {
+        if (player == null || player.inventory == null) return false;
+        var holding = player.inventory.holdingItem;
+        if (holding == null || holding.Actions == null) return false;
+        foreach (var a in holding.Actions)
+            if (a is ItemActionHSPortalGelGun) return true;
+        return false;
+    }
+
+    static float lastWhiteTime;
+
+    public static void PollWhite()
+    {
+        try
+        {
+            if (GameManager.IsDedicatedServer) return;
+            if (GameManager.Instance != null && GameManager.Instance.IsPaused()) return;
+            if (!Input.GetMouseButtonDown(2)) return;
+            var player = ItemActionHSPortalGun.LocalPlayer();
+            if (player == null || player.IsDead() || !IsHolding(player)) return;
+            var ui = player.playerUI;
+            if (ui != null && ui.windowManager != null)
+            {
+                if (ui.windowManager.IsModalWindowOpen()) return;
+                if (ui.windowManager.cursorWindowOpen) return;
+                if (ui.windowManager.IsInputActive()) return;
+            }
+            if (lastWhiteTime > 0f && Time.time - lastWhiteTime < 0.22f) return;
+            if (!SpendWhiteShot(player))
+            {
+                ItemActionHSPortalGun.Deny(player, Localization.Get("hsportalGooEmpty"));
+                return;
+            }
+            lastWhiteTime = Time.time;
+            ItemActionHSPortalGun.PlayGunAnim(player.inventory.holdingItemData, "Fire");
+            ItemActionHSPortalGun.PlayAvatarFire(player);
+            try { Audio.Manager.Play(player, "paint_spray"); } catch { }
+            HSPortalController.QueueGel(player, HSPortalGel.White, FireDelay);
+        }
+        catch (Exception e)
+        {
+            HSPortalDebug.Error("White gel poll failed", e);
+        }
+    }
+
+    public static string GelTip(byte color)
+    {
+        if (color == HSPortalGel.Orange) return Localization.Get("hsportalGelOrange");
+        if (color == HSPortalGel.White) return Localization.Get("hsportalGelWhite");
+        if (color == HSPortalGel.Cleanse) return Localization.Get("hsportalGelCleansed");
+        return Localization.Get("hsportalGelBlue");
+    }
+
+    static bool SpendWhiteShot(EntityPlayerLocal player)
+    {
+        try
+        {
+            if (player == null || player.inventory == null) return false;
+            var iv = player.inventory.holdingItemItemValue;
+            if (iv == null) return false;
+            if (iv.Meta > 0)
+            {
+                iv.Meta--;
+                return true;
+            }
+            var ammo = ItemClass.GetItem("hsportalGoo", true);
+            if (ammo == null || ammo.ItemClass == null) return false;
+            if (player.bag != null && player.bag.DecItem(ammo, 1) > 0) return true;
+            if (player.inventory != null && player.inventory.DecItem(ammo, 1) > 0) return true;
+        }
+        catch { }
+        return false;
     }
 
     bool EnsureAmmo(ItemActionData data)
