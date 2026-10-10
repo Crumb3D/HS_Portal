@@ -10,7 +10,7 @@ public class HSPortalMod : IModApi
         if (!HSGameVersion.AllowLoad("[HSPortal]"))
             return;
         ModPath = _modInstance.Path;
-        HSPortalDebug.Info("Init v0.3.10; admin: hsportal give | room | blue | orange | clear | gel");
+        HSPortalDebug.Info("Init v0.3.11; admin: hsportal give | room | blue | orange | clear | gel");
         HSPortalNet.RegisterPackage();
         ModEvents.GameStartDone.RegisterHandler(OnGameStartDone);
         ModEvents.WorldShuttingDown.RegisterHandler(OnWorldShuttingDown);

@@ -10,7 +10,7 @@ public static class HSPortalGel
     public const float PaintRange = 12f;
     public const float SpeedMul = 2.55f;
     public const float BounceMul = 1.12f;
-    public const float JumpMul = 2.1f;
+    static float ignoreUntil;
 
     struct Key : IEquatable<Key>
     {
@@ -151,6 +151,11 @@ public static class HSPortalGel
         PhysicsLocal();
     }
 
+    public static void IgnoreUntil(float unscaled)
+    {
+        if (unscaled > ignoreUntil) ignoreUntil = unscaled;
+    }
+
     public static void BeforeMove(vp_FPController fp)
     {
         if (fp == null) return;
@@ -160,6 +165,12 @@ public static class HSPortalGel
         if (world == null) return;
         bool grounded = fp.m_CharacterController != null && fp.m_CharacterController.isGrounded;
         float fall = fp.m_FallSpeed;
+        if (Time.unscaledTime < ignoreUntil)
+        {
+            wasGrounded = grounded;
+            lastFall = fall;
+            return;
+        }
         var cell = FootCell(player.position);
         byte top = Get(cell, BlockFace.Top);
         if (top == 0) top = Get(new Vector3i(cell.x, cell.y - 1, cell.z), BlockFace.Top);
@@ -179,18 +190,15 @@ public static class HSPortalGel
             fp.m_MotorThrottle = t;
         }
 
-        if (top == Blue && grounded && fall > 0.08f && lastFall <= 0.08f)
-            fp.m_FallSpeed = fall * JumpMul;
-
-        if (!grounded && fall < -0.07f)
+        if (!grounded && fall < -0.85f)
         {
             var below = new Vector3i(cell.x, cell.y - 1, cell.z);
             byte under = Get(below, BlockFace.Top);
             if (under == 0) under = Get(cell, BlockFace.Top);
             if (under == Blue)
             {
-                float bounce = Mathf.Clamp(-fall * BounceMul, 3.5f, 22f);
-                fp.m_FallSpeed = bounce;
+                float bounce = Mathf.Clamp(-fall * BounceMul, 0f, 10f);
+                if (bounce > 0.8f) fp.m_FallSpeed = bounce;
             }
         }
 

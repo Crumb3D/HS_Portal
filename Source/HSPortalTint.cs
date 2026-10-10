@@ -55,10 +55,7 @@ public static class HSPortalTint
     static readonly Quaternion GelHold = Quaternion.Euler(0f, 180f, 0f);
     static readonly Vector3 PortalHoldPosFp = new Vector3(0.05f, -0.1f, 0.22f);
     static readonly Quaternion HubFbx = Quaternion.Euler(90f, 0f, 0f);
-    static Vector3 tpHoldPos;
-    static bool tpHoldPosReady;
-    static string tpHoldKey;
-    static readonly Vector3 TpPalmNudge = new Vector3(0f, 0.02f, 0.05f);
+    static readonly Vector3 TpPalmNudge = new Vector3(0.02f, -0.03f, 0.04f);
 
     static void AimGun(Transform root, bool portal, EntityPlayerLocal p)
     {
@@ -74,58 +71,31 @@ public static class HSPortalTint
         }
         if (hold == null) return;
         bool fpv = p == null || p.emodel == null || p.emodel.IsFPV;
-        SeatInHand(root, p, fpv);
+        SeatInHand(root, p);
         hold.localRotation = portal ? PortalHold : GelHold;
-        hold.localPosition = fpv ? PortalHoldPosFp : ThirdPersonHoldPos(hold, portal ? "portal" : "gel");
+        hold.localPosition = fpv ? PortalHoldPosFp : ThirdPersonHoldPos(hold);
         if (portal) AimClaws(hold);
     }
 
-    static void SeatInHand(Transform root, EntityPlayerLocal p, bool fpv)
+    static void SeatInHand(Transform root, EntityPlayerLocal p)
     {
         if (p == null || p.emodel == null) return;
         var hand = p.emodel.GetRightHandTransform();
         if (hand == null) return;
         if (root.parent != hand)
             root.SetParent(hand, false);
-        if (fpv)
-        {
-            root.localPosition = Vector3.zero;
-            root.localRotation = Quaternion.identity;
-            return;
-        }
-        var item = p.inventory != null ? p.inventory.holdingItem : null;
-        int ht = item != null && item.HoldType != null ? item.HoldType.Value : 1;
-        var offs = AnimationGunjointOffsetData.AnimationGunjointOffset;
-        if (offs != null && ht >= 0 && ht < offs.Length)
-        {
-            root.localPosition = offs[ht].position;
-            root.localRotation = Quaternion.Euler(offs[ht].rotation);
-        }
-        else
-        {
-            root.localPosition = Vector3.zero;
-            root.localRotation = Quaternion.identity;
-        }
+        root.localPosition = Vector3.zero;
+        root.localRotation = Quaternion.identity;
     }
 
-    static Vector3 ThirdPersonHoldPos(Transform hold, string key)
+    static Vector3 ThirdPersonHoldPos(Transform hold)
     {
-        if (tpHoldPosReady && tpHoldKey == key) return tpHoldPos;
         hold.localPosition = Vector3.zero;
         var grip = FindNamed(hold, "Grip");
+        if (grip == null) grip = FindNamed(hold, "GelGrip");
         var parent = hold.parent;
-        if (grip == null || parent == null)
-        {
-            tpHoldPos = TpPalmNudge;
-            tpHoldPosReady = true;
-            tpHoldKey = key;
-            return tpHoldPos;
-        }
-        Vector3 world = GripCenter(grip);
-        tpHoldPos = -parent.InverseTransformPoint(world) + TpPalmNudge;
-        tpHoldPosReady = true;
-        tpHoldKey = key;
-        return tpHoldPos;
+        if (grip == null || parent == null) return TpPalmNudge;
+        return -parent.InverseTransformPoint(GripCenter(grip)) + TpPalmNudge;
     }
 
     static Vector3 GripCenter(Transform grip)

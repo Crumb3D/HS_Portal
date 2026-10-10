@@ -3,6 +3,7 @@
 
 		<block name="hsportalCube">
 			<property name="CreativeMode" value="Player"/>
+			<property name="Class" value="HSPortalCube, HSPortal"/>
 			<property name="DescriptionKey" value="hsportalCubeDesc"/>
 			<property name="UnlockedBy" value="craftingElectrician"/>
 			<property name="DisplayType" value="blockHardened"/>
@@ -12,7 +13,7 @@
 			<property name="Model" value="#@modfolder:Resources/HSPortal.unity3d?CompanionCube"/>
 			<property name="ModelOffset" value="0,0,0"/>
 			<property name="Place" value="TowardsPlacer"/>
-			<property name="Collide" value="movement,melee,bullet,arrow,rocket"/>
+			<property name="Collide" value="sight,movement,melee,bullet,arrow,rocket"/>
 			<property name="Path" value="solid"/>
 			<property name="CanPickup" value="true"/>
 			<property name="StabilitySupport" value="true"/>

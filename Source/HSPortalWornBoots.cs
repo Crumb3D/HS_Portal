@@ -72,7 +72,12 @@ public static class HSPortalWornBoots
             }
             return;
         }
-        if (has) return;
+        if (has)
+        {
+            Align(leftFoot);
+            Align(rightFoot);
+            return;
+        }
         HideBaseFeet(rig);
         if (leftFoot == null || rightFoot == null)
         {
@@ -97,6 +102,28 @@ public static class HSPortalWornBoots
         }
     }
 
+    // Boot mesh after FBX: shaft is BootL -Y, toes +Z. Mixamo foot +Y is along
+    // the bone (toes), +Z is out the top. Rx(-90) stands the shaft up the shin.
+    static readonly Quaternion BootRot = Quaternion.Euler(-90f, 0f, 0f);
+    static readonly Vector3 BootPos = new Vector3(0f, 0.02f, 0.04f);
+
+    static void Align(Transform foot)
+    {
+        if (foot == null) return;
+        for (int i = 0; i < foot.childCount; i++)
+        {
+            var c = foot.GetChild(i);
+            if (c != null && c.name == Marker) AlignOne(c);
+        }
+    }
+
+    static void AlignOne(Transform boot)
+    {
+        if (boot == null) return;
+        boot.localPosition = BootPos;
+        boot.localRotation = BootRot;
+    }
+
     static bool HasMarker(Transform foot)
     {
         if (foot == null) return false;
@@ -119,8 +146,7 @@ public static class HSPortalWornBoots
         var go = UnityEngine.Object.Instantiate(piece.gameObject, foot, false);
         go.name = Marker;
         go.transform.SetParent(foot, false);
-        go.transform.localPosition = new Vector3(0f, 0.05f, -0.04f);
-        go.transform.localRotation = Quaternion.identity;
+        AlignOne(go.transform);
         go.transform.localScale = Vector3.one;
         SetLayer(go, foot.gameObject.layer);
         StripDanger(go);

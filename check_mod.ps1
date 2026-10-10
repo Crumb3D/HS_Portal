@@ -56,7 +56,7 @@ if (-not (Test-Path $dll)) { Fail "HSPortal.dll missing" }
 else {
     $bytes = [IO.File]::ReadAllBytes($dll)
     $ascii = [Text.Encoding]::ASCII.GetString($bytes)
-    foreach ($t in @("XUiC_HSPortalHud", "ItemActionHSPortalGun", "ItemActionHSPortalGelGun", "HSPortalWornBoots", "HSPortalMod")) {
+    foreach ($t in @("XUiC_HSPortalHud", "ItemActionHSPortalGun", "ItemActionHSPortalGelGun", "HSPortalWornBoots", "HSPortalMod", "BlockHSPortalCube")) {
         if ($ascii.IndexOf($t) -lt 0) { Fail "DLL missing type string '$t'" } else { Ok "dll $t" }
     }
 }

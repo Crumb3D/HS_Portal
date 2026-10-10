@@ -172,7 +172,8 @@ public static class HSPortalTeleporter
             HSPortalNet.SendTeleport(e.entityId, exit, yaw, pitch, newVel);
         }
 
-        gates[e.entityId] = new Gate { portal = dst, until = Time.unscaledTime + 0.4f };
+        gates[e.entityId] = new Gate { portal = dst, until = Time.unscaledTime + 0.55f };
+        HSPortalGel.IgnoreUntil(Time.unscaledTime + 0.55f);
         HSPortalDebug.Verbose("Portal " + e.GetType().Name + " " + (src.Orange ? "O" : "B") + "->" + (dst.Orange ? "O" : "B") + " vel=" + newVel);
     }
 
@@ -199,7 +200,7 @@ public static class HSPortalTeleporter
             gates[local.entityId] = new Gate
             {
                 portal = Nearest(local.entityId, pos),
-                until = Time.unscaledTime + 0.4f
+                until = Time.unscaledTime + 0.55f
             };
             local.SetPosition(pos, true);
             local.SetRotation(new Vector3(pitch, yaw, 0f));
@@ -215,6 +216,7 @@ public static class HSPortalTeleporter
             }
             var cam = local.vp_FPCamera;
             if (cam != null) cam.SetRotation(new Vector2(pitch, yaw), true);
+            HSPortalGel.IgnoreUntil(Time.unscaledTime + 0.55f);
             return;
         }
         entity.SetPosition(pos, true);

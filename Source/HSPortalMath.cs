@@ -91,21 +91,19 @@ public static class HSPortalMath
 
     public static Vector3 TransformVelocity(HSPortal src, HSPortal dst, Vector3 vel)
     {
-        float into = Vector3.Dot(vel, -src.Normal);
-        float speed = vel.magnitude;
-        if (into < speed * 0.4f) into = Mathf.Max(into, speed);
-        if (into < 1.25f) into = 1.25f;
-        if (into > 50f) into = 50f;
-        var outVel = dst.Normal * into;
-        if (Mathf.Abs(src.Normal.y) < 0.55f && Mathf.Abs(dst.Normal.y) < 0.55f)
-            outVel.y = vel.y;
-        return outVel;
+        var mapped = TransformDirection(src, dst, vel);
+        float outAlong = Vector3.Dot(mapped, dst.Normal);
+        if (outAlong < 0.2f)
+            mapped += dst.Normal * (0.2f - outAlong);
+        float mag = mapped.magnitude;
+        if (mag > 28f) mapped *= 28f / mag;
+        return mapped;
     }
 
     public static Vector3 ExitPoint(HSPortal dst, float radius, float height)
     {
         if (dst.Normal.y > 0.55f)
-            return dst.Center + dst.Normal * 0.3f;
+            return dst.Center + dst.Up * 1.35f + dst.Normal * 0.08f;
         if (dst.Normal.y < -0.55f)
             return dst.Center + dst.Normal * Mathf.Max(0.4f, height * 0.55f);
         var p = dst.Center + dst.Normal * (radius + 0.55f);

@@ -249,7 +249,7 @@ public static class HSPortalPlacement
         if (bv.isair || bv.Block == null) return false;
         var mat = bv.Block.blockMaterial;
         if (mat == null) return false;
-        return IsMetalId(mat.id) || IsMetalId(mat.SurfaceCategory) || IsMetalId(mat.ForgeCategory) || IsMetalId(mat.DamageCategory);
+        return IsMetalId(mat.id) || IsMetalId(mat.SurfaceCategory);
     }
 
     static bool IsMetalId(string id)
@@ -257,11 +257,15 @@ public static class HSPortalPlacement
         if (string.IsNullOrEmpty(id)) return false;
         var s = id.ToLowerInvariant();
         if (s.IndexOf("wood", StringComparison.Ordinal) >= 0) return false;
+        if (s.IndexOf("stone", StringComparison.Ordinal) >= 0) return false;
+        if (s.IndexOf("concrete", StringComparison.Ordinal) >= 0) return false;
+        if (s.IndexOf("dirt", StringComparison.Ordinal) >= 0) return false;
+        if (s.IndexOf("asphalt", StringComparison.Ordinal) >= 0) return false;
         if (s.IndexOf("metal", StringComparison.Ordinal) >= 0) return true;
         if (s.IndexOf("steel", StringComparison.Ordinal) >= 0) return true;
-        if (s.IndexOf("iron", StringComparison.Ordinal) >= 0) return true;
+        if (s == "iron" || s.StartsWith("miron", StringComparison.Ordinal) || s.StartsWith("iron", StringComparison.Ordinal)) return true;
         if (s.IndexOf("brass", StringComparison.Ordinal) >= 0) return true;
-        if (s == "lead" || s.IndexOf("lead_", StringComparison.Ordinal) >= 0) return true;
+        if (s == "lead" || s.StartsWith("mlead", StringComparison.Ordinal)) return true;
         if (s.IndexOf("stainless", StringComparison.Ordinal) >= 0) return true;
         return false;
     }
@@ -286,7 +290,8 @@ public static class HSPortalPlacement
         return name != null && name.IndexOf(":Cube", StringComparison.OrdinalIgnoreCase) >= 0;
     }
 
-    // Workbench, chest, another cube, extra terrain — anything you collide with on that face.
+    // Workbench / chest / a real cube on the face. Air-density terrain above a
+    // road or pad is empty space — do not treat it as a blocker.
     static bool IsFaceObstructed(World world, Vector3i cell, BlockFace face)
     {
         var step = HSPortalMath.FaceStep(face);
@@ -294,6 +299,8 @@ public static class HSPortalPlacement
         if (world.GetChunkFromWorldPos(neighbour) == null) return true;
         var nb = world.GetBlock(neighbour);
         if (nb.isair || nb.Block == null) return false;
+        if (nb.Block.shape != null && nb.Block.shape.IsTerrain())
+            return world.GetDensity(neighbour) < 0;
         return nb.Block.IsCollideMovement;
     }
 }
