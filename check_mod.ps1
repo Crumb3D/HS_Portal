@@ -61,6 +61,15 @@ else {
     }
 }
 
+$navXml = Join-Path $Root "Config\nav_objects.xml"
+if (-not (Test-Path $navXml)) { Fail "Config/nav_objects.xml missing" }
+else {
+    $nav = Get-Content $navXml -Raw
+    if ($nav -notmatch 'name="hsportalBlue"' -or $nav -notmatch 'name="hsportalOrange"') {
+        Fail "nav_objects.xml missing hsportalBlue/hsportalOrange"
+    } else { Ok "nav_objects hsportalBlue/hsportalOrange" }
+}
+
 $windows = Get-Content (Join-Path $Root "Config\XUi_InGame\windows.xml") -Raw
 foreach ($c in ([regex]::Matches($windows, 'controller="([^"]+)"') | ForEach-Object { $_.Groups[1].Value })) {
     if ($c -notmatch ',') { Fail ("XUi controller {0} has no assembly name - use Name, HSPortal" -f $c) }

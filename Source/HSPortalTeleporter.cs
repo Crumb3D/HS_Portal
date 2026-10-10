@@ -84,12 +84,47 @@ public static class HSPortalTeleporter
             return new Vector3(fp.m_MotorThrottle.x + fp.m_ExternalForce.x, fp.m_FallSpeed, fp.m_MotorThrottle.z + fp.m_ExternalForce.z);
         }
         var item = e as EntityItem;
-        if (item != null && item.itemRB != null && item.itemRB.velocity.sqrMagnitude > 0.0001f)
+        if (item != null && item.itemRB != null)
             return item.itemRB.velocity;
-        if (e.physicsRB != null && e.physicsRB.velocity.sqrMagnitude > 0.0001f)
+        if (e is EntityAlive)
+            return e.motion;
+        if (e.physicsRB != null)
             return e.physicsRB.velocity;
         if (e.motion.sqrMagnitude > 0.0001f) return e.motion;
         return e.physicsVel;
+    }
+
+    static void WriteVel(Entity e, Vector3 vel)
+    {
+        var local = e as EntityPlayerLocal;
+        if (local != null && local.vp_FPController != null)
+        {
+            pendingVel = vel;
+            hasPending = true;
+            pendingFrames = 5;
+            pendingFp = local.vp_FPController;
+            return;
+        }
+        var item = e as EntityItem;
+        if (item != null && item.itemRB != null)
+        {
+            item.itemRB.velocity = vel;
+            item.itemRB.angularVelocity *= 0.4f;
+            return;
+        }
+        if (e is EntityAlive)
+        {
+            e.SetVelocity(vel);
+            return;
+        }
+        if (e.physicsRB != null)
+        {
+            e.physicsRB.velocity = vel;
+            e.physicsVel = vel;
+            return;
+        }
+        e.SetVelocity(vel);
+        e.physicsVel = vel;
     }
 
     static bool IsPhysicsProp(Entity e)
@@ -143,28 +178,14 @@ public static class HSPortalTeleporter
 
         e.SetPosition(exit, true);
         if (!prop) e.SetRotation(new Vector3(pitch, yaw, 0f));
-        e.motion = newVel;
-        e.physicsVel = newVel;
-        if (e.physicsRB != null) e.physicsRB.velocity = newVel;
-        var dropped = e as EntityItem;
-        if (dropped != null && dropped.itemRB != null)
-        {
-            dropped.itemRB.velocity = newVel;
-            dropped.itemRB.angularVelocity *= 0.4f;
-        }
+        WriteVel(e, newVel);
 
         var local = e as EntityPlayerLocal;
         if (local != null)
         {
             var fp = local.vp_FPController;
             if (fp != null)
-            {
                 fp.SetPosition(exit - Origin.position);
-                pendingVel = newVel;
-                hasPending = true;
-                pendingFrames = 5;
-                pendingFp = fp;
-            }
             var cam = local.vp_FPCamera;
             if (cam != null) cam.SetRotation(new Vector2(pitch, yaw), true);
             HSPortalNet.SendTeleport(e.entityId, exit, yaw, pitch, newVel);
@@ -202,16 +223,10 @@ public static class HSPortalTeleporter
             };
             local.SetPosition(pos, true);
             local.SetRotation(new Vector3(pitch, yaw, 0f));
-            local.motion = vel;
+            WriteVel(local, vel);
             var fp = local.vp_FPController;
             if (fp != null)
-            {
                 fp.SetPosition(pos - Origin.position);
-                pendingVel = vel;
-                hasPending = true;
-                pendingFrames = 5;
-                pendingFp = fp;
-            }
             var cam = local.vp_FPCamera;
             if (cam != null) cam.SetRotation(new Vector2(pitch, yaw), true);
             HSPortalGel.IgnoreUntil(Time.unscaledTime + 0.2f);
@@ -219,8 +234,7 @@ public static class HSPortalTeleporter
         }
         entity.SetPosition(pos, true);
         entity.SetRotation(new Vector3(pitch, yaw, 0f));
-        entity.motion = vel;
-        entity.physicsVel = vel;
+        WriteVel(entity, vel);
     }
 
     static HSPortal Nearest(int ownerId, Vector3 pos)

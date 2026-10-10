@@ -148,6 +148,11 @@
 			<property name="SellableToTrader" value="false"/>
 			<property name="ShowQuality" value="true"/>
 			<property name="EconomicValue" value="350"/>
+			<property class="SDCS">
+				<property name="Prefab" value="@:Entities/Player/{sex}/Gear/Biker/gear{sex}BikerPrefab.prefab"/>
+				<property name="TransformName" value="feet"/>
+				<property name="Excludes" value="feet"/>
+			</property>
 			<effect_group name="HSPortalBoots">
 				<passive_effect name="ModSlots" operation="base_set" value="2,2,3,3,4,5" tier="1,2,3,4,5,6"/>
 				<passive_effect name="ModPowerBonus" operation="base_add" value="300" tags="EconomicValue"/>

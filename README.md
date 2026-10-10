@@ -1,14 +1,14 @@
 # HS Portal
 
-Survival-styled portal gun, gel, weighted cube, and long-fall boots for **7 Days to Die 3.2**. Portal 2 is a behaviour reference only — no Valve meshes.
+Survival-styled portal gun, gel, weighted cube, and long-fall boots for **7 Days to Die 3.2 and 3.3**. Portal 2 is a behaviour reference only — no Valve meshes.
 
-The held gun is an original industrial 7DTD weapon (claws, blue/orange coils, DANGER pack) built from `portal Gun Design.png`. **Version 0.3.2.**
+The held gun is an original industrial 7DTD weapon (claws, blue/orange coils, DANGER pack) built from `portal Gun Design.png`. **Version 0.3.13.**
 
 License: [MIT](LICENSE). Author: Crumb.
 
 ## Requirements
 
-- 7 Days to Die **3.2** (PC).
+- 7 Days to Die **3.2** or **3.3** (PC).
 - **Harmony** — `0_TFP_Harmony`, ships with the game.
 - **Multiplayer:** the same `HS_Portal` folder on the **dedicated server and every client**.
 
@@ -32,11 +32,11 @@ Creative menu still has everything. Admin `hsportal give` dumps the whole kit.
 
 ## Use
 
-**Portal gun** — left click blue, right click orange, **middle click** fizzles both. The HUD at the top of the screen lights the colours that are currently out; the bar between them lights when the pair is linked.
+**Portal gun** — left click blue, right click orange, **middle click** fizzles both. The HUD sits top-left and lights the colours that are currently out; the bar between them lights when the pair is linked. Placed portals also show on the compass in their colour. Speed in equals speed out — players, zombies, thrown items, and shots are not boosted.
 
 **Gel gun** — craft **Repulsion/Propulsion Goo** (paint, scrap polymers, acid) and reload with R. The ammo widget on the right of the HUD shows the magazine. Left click blue bounce gel, right click orange speed gel.
 
-**Long-fall boots** — feet slot, like vanilla shoes. They hide the default feet and sit on the character (3rd person and other players). Light-armor protection, durability, and a small run-speed bonus while worn. Fall damage is ignored only while they are equipped.
+**Long-fall boots** — feet slot. Worn look is the vanilla Biker/rocket-boot mesh (same SDCS feet as `rocketBootsAdmin`). Light-armor protection, durability, and a small run-speed bonus while worn. Fall damage is ignored only while they are equipped.
 
 **Weighted cube** — placeable scrap-steel crate. Diffuse, displacement, and glow maps drive the faces; the heart lights. E to pick up.
 

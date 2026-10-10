@@ -1,7 +1,7 @@
 <configs>
 	<append xpath="/windows">
 
-		<window name="HUDHSPortal" pos="0,-56" width="220" height="72" anchor="CenterTop" depth="-18" controller="HSPortalHud, HSPortal">
+		<window name="HUDHSPortal" pos="16,-78" width="220" height="72" anchor="TopLeft" depth="-18" controller="HSPortalHud, HSPortal">
 			<rect width="220" height="72" visible="{hudvisible}">
 				<sprite depth="1" pos="0,0" width="220" height="56" sprite="menu_empty" color="0,0,0,130" type="sliced"/>
 				<sprite depth="2" pos="0,0" width="220" height="56" sprite="menu_empty3px" color="0,0,0,220" type="sliced" fillcenter="false"/>

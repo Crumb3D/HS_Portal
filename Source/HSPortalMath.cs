@@ -5,7 +5,7 @@ public static class HSPortalMath
     public const float HalfWidth = 0.58f;
     public const float HalfHeight = 0.98f;
     public const float PlaceRange = 80f;
-    public const float SurfaceOffset = 0.08f;
+    public const float SurfaceOffset = 0.012f;
     public const float Thickness = 0.55f;
 
     public static Vector3 FaceNormal(BlockFace face)
@@ -91,11 +91,15 @@ public static class HSPortalMath
 
     public static Vector3 TransformVelocity(HSPortal src, HSPortal dst, Vector3 vel)
     {
+        float mag = vel.magnitude;
+        if (mag < 1e-8f) return Vector3.zero;
         var mapped = TransformDirection(src, dst, vel);
         float outAlong = Vector3.Dot(mapped, dst.Normal);
         if (outAlong < 0f)
             mapped -= dst.Normal * outAlong;
-        return mapped;
+        if (mapped.sqrMagnitude < 1e-10f)
+            mapped = dst.Normal;
+        return mapped.normalized * mag;
     }
 
     public static Vector3 ExitPoint(HSPortal dst, float radius, float height)

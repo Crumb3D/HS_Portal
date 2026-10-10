@@ -17,6 +17,7 @@ public static class HSPortalVisual
     }
 
     static readonly Dictionary<string, View> views = new Dictionary<string, View>();
+    static readonly Dictionary<string, NavObject> compass = new Dictionary<string, NavObject>();
     static Mesh disc;
     static Mesh ring;
     static Shader colorShader;
@@ -34,6 +35,7 @@ public static class HSPortalVisual
         UnparentCam(Key(ownerId, true));
         DestroyKey(Key(ownerId, false));
         DestroyKey(Key(ownerId, true));
+        RebuildCompass(ownerId);
         if (GameManager.IsDedicatedServer) return;
         var pair = HSPortalWorld.GetPair(ownerId, false);
         if (pair == null) return;
@@ -46,6 +48,41 @@ public static class HSPortalVisual
         var keys = new List<string>(views.Keys);
         for (int i = 0; i < keys.Count; i++) UnparentCam(keys[i]);
         for (int i = 0; i < keys.Count; i++) DestroyKey(keys[i]);
+        DropAllCompass();
+    }
+
+    static void RebuildCompass(int ownerId)
+    {
+        DropCompass(Key(ownerId, false));
+        DropCompass(Key(ownerId, true));
+        if (GameManager.IsDedicatedServer) return;
+        if (!NavObjectManager.HasInstance) return;
+        var pair = HSPortalWorld.GetPair(ownerId, false);
+        if (pair == null) return;
+        if (pair.Blue != null) PinCompass(Key(ownerId, false), "hsportalBlue", pair.Blue.Center);
+        if (pair.Orange != null) PinCompass(Key(ownerId, true), "hsportalOrange", pair.Orange.Center);
+    }
+
+    static void PinCompass(string key, string className, Vector3 worldPos)
+    {
+        if (NavObjectClass.GetNavObjectClass(className) == null) return;
+        compass[key] = NavObjectManager.Instance.RegisterNavObject(className, worldPos, "", false);
+    }
+
+    static void DropCompass(string key)
+    {
+        NavObject n;
+        if (!compass.TryGetValue(key, out n)) return;
+        compass.Remove(key);
+        if (n == null || !NavObjectManager.HasInstance) return;
+        try { NavObjectManager.Instance.UnRegisterNavObject(n); }
+        catch { }
+    }
+
+    static void DropAllCompass()
+    {
+        var keys = new List<string>(compass.Keys);
+        for (int i = 0; i < keys.Count; i++) DropCompass(keys[i]);
     }
 
     public static void SyncAll()

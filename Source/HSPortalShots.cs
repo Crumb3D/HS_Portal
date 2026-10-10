@@ -37,11 +37,55 @@ public static class HSPortalShots
         var vel = shot.velocity.sqrMagnitude > 0.0001f ? shot.velocity : shot.flyDirection;
         if (vel.sqrMagnitude < 0.0001f) vel = ray.direction;
         var newVel = HSPortalMath.TransformVelocity(src, dst, vel);
-        if (newVel.sqrMagnitude < 0.01f) newVel = dst.Normal * Mathf.Max(8f, vel.magnitude);
+        if (newVel.sqrMagnitude < 1e-8f && vel.sqrMagnitude > 1e-8f)
+            newVel = dst.Normal * vel.magnitude;
         var exit = dst.Center + dst.Normal * 0.35f;
         shot.transform.position = exit - Origin.position;
         shot.previousPosition = shot.transform.position;
         shot.idealPosition = shot.transform.position;
+        shot.velocity = newVel;
+        shot.flyDirection = newVel.normalized;
+        shot.FinalPosition = exit + newVel;
+        shotIgnore[id] = Time.unscaledTime + 0.2f;
+    }
+
+    public static void WarpThrown(ThrownWeaponMoveScript shot)
+    {
+        if (shot == null) return;
+        int id = shot.GetInstanceID();
+        float until;
+        if (shotIgnore.TryGetValue(id, out until) && Time.unscaledTime < until) return;
+
+        var worldPos = shot.transform.position + Origin.position;
+        var prev = shot.previousPosition.sqrMagnitude > 0.0001f ? shot.previousPosition : worldPos;
+        if ((prev - Origin.position).sqrMagnitude < 1f) prev = shot.previousPosition + Origin.position;
+        var ray = new Ray(prev, worldPos - prev);
+        float span = (worldPos - prev).magnitude + 0.15f;
+        if (span < 0.02f)
+        {
+            ray = new Ray(worldPos, shot.flyDirection.sqrMagnitude > 0.0001f ? shot.flyDirection : shot.velocity);
+            span = 0.35f;
+        }
+
+        HSPortal src, dst;
+        float t;
+        if (!HSPortalMath.TryRedirectRay(ray, Mathf.Max(span, 0.4f), out src, out dst, out t))
+        {
+            var near = NearestPortal(worldPos);
+            if (near == null || !HSPortalMath.InEllipse(near, worldPos, 0.12f)) return;
+            if (!HSPortalMath.TryRedirectRay(new Ray(worldPos, -near.Normal), 1.2f, out src, out dst, out t))
+                return;
+        }
+        if (src == null || dst == null) return;
+
+        var vel = shot.velocity.sqrMagnitude > 0.0001f ? shot.velocity : shot.flyDirection;
+        if (vel.sqrMagnitude < 0.0001f) vel = ray.direction;
+        var newVel = HSPortalMath.TransformVelocity(src, dst, vel);
+        if (newVel.sqrMagnitude < 1e-8f && vel.sqrMagnitude > 1e-8f)
+            newVel = dst.Normal * vel.magnitude;
+        var exit = dst.Center + dst.Normal * 0.35f;
+        shot.transform.position = exit - Origin.position;
+        shot.previousPosition = shot.transform.position;
         shot.velocity = newVel;
         shot.flyDirection = newVel.normalized;
         shot.FinalPosition = exit + newVel;
@@ -115,6 +159,16 @@ static class HSPortalProjectilePatch
     {
         try { HSPortalShots.WarpProjectile(__instance); }
         catch (System.Exception e) { HSPortalDebug.Error("Projectile portal failed", e); }
+    }
+}
+
+[HarmonyPatch(typeof(ThrownWeaponMoveScript), "FixedUpdate")]
+static class HSPortalThrownPatch
+{
+    static void Prefix(ThrownWeaponMoveScript __instance)
+    {
+        try { HSPortalShots.WarpThrown(__instance); }
+        catch (System.Exception e) { HSPortalDebug.Error("Thrown portal failed", e); }
     }
 }
 

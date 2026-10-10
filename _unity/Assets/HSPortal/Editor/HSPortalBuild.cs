@@ -469,12 +469,10 @@ public static class HSPortalBuild
             }
             for (int i = 0; i < kill.Count; i++)
                 UnityEngine.Object.DestroyImmediate(kill[i]);
-            // 7DTD ModelEntity sits on the block corner. Mesh is centered, so
-            // shift it into the 0..1 cell and keep ModelOffset at 0,0,0.
-            foreach (Transform t in go.transform)
-                t.localPosition += new Vector3(0.5f, 0.5f, 0.5f);
+            // Mesh stays at origin. ModelEntity uses ModelOffset 0,0.5,0 and
+            // Chunk adds +0.5 XZ so the cube fills the highlighted cell.
             var bc = go.AddComponent<BoxCollider>();
-            bc.center = new Vector3(0.5f, 0.5f, 0.5f);
+            bc.center = Vector3.zero;
             bc.size = Vector3.one;
         }
         else

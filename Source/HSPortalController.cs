@@ -88,7 +88,6 @@ public class HSPortalController : MonoBehaviour
             HSPortalVisual.SyncAll();
             HSPortalGelVisual.SyncAll();
             HSPortalTint.TickHeld();
-            HSPortalWornBoots.Tick();
         }
         catch (System.Exception e) { HSPortalDebug.Error("Visual sync failed", e); }
     }

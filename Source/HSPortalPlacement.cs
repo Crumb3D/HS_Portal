@@ -89,10 +89,6 @@ public static class HSPortalPlacement
         {
             if (up.y < 0f) up = -up;
             if (up.sqrMagnitude < 0.0001f) up = Vector3.up;
-            float bottom = center.y - 0.98f;
-            float floorY = Mathf.Min(a.y, b.y);
-            if (bottom < floorY + 0.02f)
-                center.y += (floorY + 0.02f) - bottom;
         }
         else
         {
