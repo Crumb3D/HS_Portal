@@ -8,9 +8,18 @@ public static class HSPortalGel
     public const byte Blue = 1;
     public const byte Orange = 2;
     public const float PaintRange = 12f;
-    public const float SpeedMul = 2.55f;
-    public const float BounceMul = 1.12f;
+    public const float SpeedMul = 2.8f;
+    public const float BounceMin = 2.4f;
+    public const float BounceImpact = 8f;
+    public const float BounceMax = 5.5f;
+    public const float OrangeCap = 0.95f;
+    public const float WallPush = 1.15f;
     static float ignoreUntil;
+    static bool wasOnBlue;
+    static float bounceLock;
+    static float orangeBoost;
+    static Vector3 orangeRetain;
+    static float wallLock;
 
     struct Key : IEquatable<Key>
     {
@@ -165,6 +174,7 @@ public static class HSPortalGel
         if (world == null) return;
         bool grounded = fp.m_CharacterController != null && fp.m_CharacterController.isGrounded;
         float fall = fp.m_FallSpeed;
+        float dt = Time.fixedDeltaTime > 0f ? Time.fixedDeltaTime : 0.02f;
         if (Time.unscaledTime < ignoreUntil)
         {
             wasGrounded = grounded;
@@ -174,36 +184,77 @@ public static class HSPortalGel
         var cell = FootCell(player.position);
         byte top = Get(cell, BlockFace.Top);
         if (top == 0) top = Get(new Vector3i(cell.x, cell.y - 1, cell.z), BlockFace.Top);
+        bool crouched = player.IsCrouching;
 
         if (top == Orange && grounded)
         {
+            orangeBoost = Mathf.MoveTowards(orangeBoost, 1f, dt * 1.35f);
             var t = fp.m_MotorThrottle;
-            t.x *= SpeedMul;
-            t.z *= SpeedMul;
+            t.x *= 1f + (SpeedMul - 1f) * orangeBoost;
+            t.z *= 1f + (SpeedMul - 1f) * orangeBoost;
             float mag = Mathf.Sqrt(t.x * t.x + t.z * t.z);
-            if (mag > 3.2f)
+            if (mag > OrangeCap)
             {
-                float s = 3.2f / mag;
+                float s = OrangeCap / mag;
                 t.x *= s;
                 t.z *= s;
             }
             fp.m_MotorThrottle = t;
+            orangeRetain = new Vector3(t.x, 0f, t.z);
         }
-
-        if (!grounded && fall < -0.85f)
+        else
         {
-            var below = new Vector3i(cell.x, cell.y - 1, cell.z);
-            byte under = Get(below, BlockFace.Top);
-            if (under == 0) under = Get(cell, BlockFace.Top);
-            if (under == Blue)
+            orangeBoost = Mathf.MoveTowards(orangeBoost, 0f, dt * 0.28f);
+            if (orangeBoost > 0.04f && orangeRetain.sqrMagnitude > 0.0001f)
             {
-                float bounce = Mathf.Clamp(-fall * BounceMul, 0f, 10f);
-                if (bounce > 0.8f) fp.m_FallSpeed = bounce;
+                var keep = orangeRetain * orangeBoost * 0.85f;
+                var ext = fp.m_ExternalForce;
+                ext.x += keep.x;
+                ext.z += keep.z;
+                fp.m_ExternalForce = ext;
+                orangeRetain *= 0.985f;
             }
         }
 
+        bool onBlue = top == Blue;
+        if (onBlue && !crouched && Time.unscaledTime > bounceLock)
+        {
+            bool landed = grounded && !wasGrounded;
+            bool stepped = grounded && !wasOnBlue;
+            if (landed || stepped)
+            {
+                float impact = Mathf.Max(0f, -lastFall);
+                fp.m_FallSpeed = Mathf.Clamp(BounceMin + impact * BounceImpact, BounceMin, BounceMax);
+                bounceLock = Time.unscaledTime + 0.14f;
+            }
+        }
+
+        if (!crouched && Time.unscaledTime > wallLock)
+            TryWallBounce(fp, player, world);
+
+        wasOnBlue = onBlue && grounded;
         wasGrounded = grounded;
         lastFall = fp.m_FallSpeed;
+    }
+
+    static void TryWallBounce(vp_FPController fp, EntityPlayerLocal player, World world)
+    {
+        var feet = player.position;
+        var mid = feet + Vector3.up * 0.9f;
+        var faces = new[] { BlockFace.North, BlockFace.South, BlockFace.East, BlockFace.West };
+        for (int i = 0; i < faces.Length; i++)
+        {
+            var face = faces[i];
+            var n = HSPortalMath.FaceNormal(face);
+            var probe = HSPortalMath.WorldToCell(mid + n * 0.35f);
+            if (Get(probe, face) != Blue) continue;
+            var into = fp.m_MotorThrottle + fp.m_ExternalForce;
+            if (Vector3.Dot(into, n) > -0.008f) continue;
+            fp.m_ExternalForce = new Vector3(n.x * WallPush, 0f, n.z * WallPush);
+            if (fp.m_FallSpeed < 0.55f) fp.m_FallSpeed = 0.55f;
+            wallLock = Time.unscaledTime + 0.2f;
+            return;
+        }
     }
 
     static Vector3i FootCell(Vector3 pos)

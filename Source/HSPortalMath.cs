@@ -5,7 +5,7 @@ public static class HSPortalMath
     public const float HalfWidth = 0.58f;
     public const float HalfHeight = 0.98f;
     public const float PlaceRange = 80f;
-    public const float SurfaceOffset = 0.03f;
+    public const float SurfaceOffset = 0.08f;
     public const float Thickness = 0.55f;
 
     public static Vector3 FaceNormal(BlockFace face)
@@ -93,21 +93,23 @@ public static class HSPortalMath
     {
         var mapped = TransformDirection(src, dst, vel);
         float outAlong = Vector3.Dot(mapped, dst.Normal);
-        if (outAlong < 0.2f)
-            mapped += dst.Normal * (0.2f - outAlong);
-        float mag = mapped.magnitude;
-        if (mag > 28f) mapped *= 28f / mag;
+        if (outAlong < 0f)
+            mapped -= dst.Normal * outAlong;
         return mapped;
     }
 
     public static Vector3 ExitPoint(HSPortal dst, float radius, float height)
     {
         if (dst.Normal.y > 0.55f)
-            return dst.Center + dst.Up * 1.35f + dst.Normal * 0.08f;
+        {
+            var along = Vector3.ProjectOnPlane(dst.Up, Vector3.up);
+            if (along.sqrMagnitude < 0.0001f) along = Vector3.forward;
+            return dst.Center + along.normalized * 1.15f + Vector3.up * 0.05f;
+        }
         if (dst.Normal.y < -0.55f)
             return dst.Center + dst.Normal * Mathf.Max(0.4f, height * 0.55f);
-        var p = dst.Center + dst.Normal * (radius + 0.55f);
-        p.y = dst.Center.y - height * 0.52f;
+        var p = dst.Center + dst.Normal * (radius + 0.45f);
+        p.y = dst.Center.y - height * 0.5f;
         return p;
     }
 

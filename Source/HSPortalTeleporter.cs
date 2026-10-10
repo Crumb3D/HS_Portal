@@ -81,8 +81,6 @@ public static class HSPortalTeleporter
         if (local != null && local.vp_FPController != null)
         {
             var fp = local.vp_FPController;
-            var v = fp.Velocity;
-            if (v.sqrMagnitude > 0.0001f) return v;
             return new Vector3(fp.m_MotorThrottle.x + fp.m_ExternalForce.x, fp.m_FallSpeed, fp.m_MotorThrottle.z + fp.m_ExternalForce.z);
         }
         var item = e as EntityItem;
@@ -173,16 +171,16 @@ public static class HSPortalTeleporter
         }
 
         gates[e.entityId] = new Gate { portal = dst, until = Time.unscaledTime + 0.55f };
-        HSPortalGel.IgnoreUntil(Time.unscaledTime + 0.55f);
+        HSPortalGel.IgnoreUntil(Time.unscaledTime + 0.2f);
         HSPortalDebug.Verbose("Portal " + e.GetType().Name + " " + (src.Orange ? "O" : "B") + "->" + (dst.Orange ? "O" : "B") + " vel=" + newVel);
     }
 
     public static void ApplyPending(vp_FPController fp)
     {
         if (!hasPending || fp == null || !ReferenceEquals(fp, pendingFp)) return;
-        fp.m_MotorThrottle = Vector3.zero;
+        fp.m_MotorThrottle = new Vector3(pendingVel.x, 0f, pendingVel.z);
         fp.m_FallSpeed = pendingVel.y;
-        fp.m_ExternalForce = new Vector3(pendingVel.x, 0f, pendingVel.z);
+        fp.m_ExternalForce = Vector3.zero;
         pendingFrames--;
         if (pendingFrames <= 0)
         {
@@ -216,7 +214,7 @@ public static class HSPortalTeleporter
             }
             var cam = local.vp_FPCamera;
             if (cam != null) cam.SetRotation(new Vector2(pitch, yaw), true);
-            HSPortalGel.IgnoreUntil(Time.unscaledTime + 0.55f);
+            HSPortalGel.IgnoreUntil(Time.unscaledTime + 0.2f);
             return;
         }
         entity.SetPosition(pos, true);

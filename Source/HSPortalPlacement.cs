@@ -89,6 +89,10 @@ public static class HSPortalPlacement
         {
             if (up.y < 0f) up = -up;
             if (up.sqrMagnitude < 0.0001f) up = Vector3.up;
+            float bottom = center.y - 0.98f;
+            float floorY = Mathf.Min(a.y, b.y);
+            if (bottom < floorY + 0.02f)
+                center.y += (floorY + 0.02f) - bottom;
         }
         else
         {
@@ -143,16 +147,24 @@ public static class HSPortalPlacement
         var mid = new Vector3(cell.x + 0.5f, cell.y + 0.5f, cell.z + 0.5f);
         if ((pos - mid).sqrMagnitude > 16f)
             pos = pos + Origin.position;
-        if (face == BlockFace.None || face == BlockFace.Middle || HSPortalMath.FaceNormal(face).sqrMagnitude < 0.5f)
-            face = DominantFace(cell, pos);
+        face = FaceFromHit(world, cell, face, pos);
         if (!IsPortalSurface(world, cell, face))
         {
             var inside = pos - HSPortalMath.FaceNormal(face) * 0.08f;
             cell = HSPortalMath.WorldToCell(inside);
-            if (face == BlockFace.None || face == BlockFace.Middle)
-                face = DominantFace(cell, pos);
+            face = FaceFromHit(world, cell, face, pos);
         }
         return IsSolidSupport(world, cell) || IsMetal(world, cell);
+    }
+
+    static BlockFace FaceFromHit(World world, Vector3i cell, BlockFace face, Vector3 pos)
+    {
+        var local = pos - new Vector3(cell.x + 0.5f, cell.y + 0.5f, cell.z + 0.5f);
+        if (local.y > 0.38f && IsPortalSurface(world, cell, BlockFace.Top)) return BlockFace.Top;
+        if (local.y < -0.38f && IsPortalSurface(world, cell, BlockFace.Bottom)) return BlockFace.Bottom;
+        if (face == BlockFace.None || face == BlockFace.Middle || HSPortalMath.FaceNormal(face).sqrMagnitude < 0.5f)
+            return DominantFace(cell, pos);
+        return face;
     }
 
     static BlockFace DominantFace(Vector3i cell, Vector3 worldPos)
@@ -180,7 +192,7 @@ public static class HSPortalPlacement
         bool found = false;
         Vector3i[] steps;
         if (wall)
-            steps = new[] { new Vector3i(0, 1, 0), new Vector3i(0, -1, 0) };
+            steps = new[] { new Vector3i(0, 1, 0) };
         else
             steps = new[] { new Vector3i(1, 0, 0), new Vector3i(-1, 0, 0), new Vector3i(0, 0, 1), new Vector3i(0, 0, -1) };
         var mid = new Vector3(hit.x + 0.5f, hit.y + 0.5f, hit.z + 0.5f);

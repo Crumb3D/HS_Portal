@@ -71,7 +71,7 @@ public static class HSPortalTint
         }
         if (hold == null) return;
         bool fpv = p == null || p.emodel == null || p.emodel.IsFPV;
-        SeatInHand(root, p);
+        if (!fpv) SeatInHand(root, p);
         hold.localRotation = portal ? PortalHold : GelHold;
         hold.localPosition = fpv ? PortalHoldPosFp : ThirdPersonHoldPos(hold);
         if (portal) AimClaws(hold);
@@ -108,26 +108,13 @@ public static class HSPortalTint
         return grip.position;
     }
 
-    // Idle keys Blender Y-spin. Do not multiply that every LateUpdate (it compounds
-    // and the claws wander). Set Hub FBX Rx(90) and park each claw around Hub +Z.
+    // Idle keys spin the claws. Kill the animator and leave the FBX rest pose alone.
     static void AimClaws(Transform hold)
     {
         var anim = hold.GetComponentInChildren<Animator>();
         if (anim != null) anim.enabled = false;
         var hub = FindNamed(hold, "EmitterHub");
-        if (hub == null) return;
-        hub.localRotation = HubFbx;
-        for (int i = 0; i < hub.childCount; i++)
-        {
-            var c = hub.GetChild(i);
-            if (c == null) continue;
-            var n = c.name;
-            if (n.Length < 6 || n.IndexOf("Claw_", System.StringComparison.Ordinal) != 0) continue;
-            if (n.IndexOf('_', 5) >= 0) continue;
-            int idx = n[5] - '1';
-            if (idx < 0 || idx > 3) continue;
-            c.localRotation = Quaternion.AngleAxis(idx * 90f, Vector3.forward) * Quaternion.Euler(-6f, 0f, 0f);
-        }
+        if (hub != null) hub.localRotation = HubFbx;
     }
 
     static Transform FindNamed(Transform root, string name)
