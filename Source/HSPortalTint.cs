@@ -54,8 +54,9 @@ public static class HSPortalTint
     static readonly Quaternion PortalHold = Quaternion.Euler(-90f, 180f, 0f);
     static readonly Quaternion GelHold = Quaternion.Euler(0f, 180f, 0f);
     static readonly Vector3 PortalHoldPosFp = new Vector3(0.05f, -0.1f, 0.22f);
+    static readonly Vector3 PortalHoldPosTp = new Vector3(0.04f, -0.02f, -0.12f);
+    static readonly Vector3 GelHoldPosTp = new Vector3(0.03f, -0.01f, -0.16f);
     static readonly Quaternion HubFbx = Quaternion.Euler(90f, 0f, 0f);
-    static readonly Vector3 TpPalmNudge = new Vector3(0.02f, -0.03f, 0.04f);
 
     static void AimGun(Transform root, bool portal, EntityPlayerLocal p)
     {
@@ -73,8 +74,10 @@ public static class HSPortalTint
         bool fpv = p == null || p.emodel == null || p.emodel.IsFPV;
         if (!fpv) SeatInHand(root, p);
         hold.localRotation = portal ? PortalHold : GelHold;
-        hold.localPosition = fpv ? PortalHoldPosFp : ThirdPersonHoldPos(hold);
-        if (portal) AimClaws(hold);
+        hold.localPosition = fpv ? PortalHoldPosFp : (portal ? PortalHoldPosTp : GelHoldPosTp);
+        hold.localScale = Vector3.one * (fpv ? 0.8f : 1f);
+        KillAnimators(root);
+        if (portal) ParkClaws(hold);
     }
 
     static void SeatInHand(Transform root, EntityPlayerLocal p)
@@ -86,35 +89,33 @@ public static class HSPortalTint
             root.SetParent(hand, false);
         root.localPosition = Vector3.zero;
         root.localRotation = Quaternion.identity;
+        root.localScale = Vector3.one;
     }
 
-    static Vector3 ThirdPersonHoldPos(Transform hold)
+    static void KillAnimators(Transform root)
     {
-        hold.localPosition = Vector3.zero;
-        var grip = FindNamed(hold, "Grip");
-        if (grip == null) grip = FindNamed(hold, "GelGrip");
-        var parent = hold.parent;
-        if (grip == null || parent == null) return TpPalmNudge;
-        return -parent.InverseTransformPoint(GripCenter(grip)) + TpPalmNudge;
+        var anims = root.GetComponentsInChildren<Animator>(true);
+        for (int i = 0; i < anims.Length; i++)
+        {
+            if (anims[i] != null) anims[i].enabled = false;
+        }
     }
 
-    static Vector3 GripCenter(Transform grip)
+    // Idle keys spin the claws. Do not leave them to the FBX/animator. Pin a muzzle ring every frame.
+    static void ParkClaws(Transform hold)
     {
-        var mf = grip.GetComponent<MeshFilter>();
-        if (mf != null && mf.sharedMesh != null)
-            return grip.TransformPoint(mf.sharedMesh.bounds.center);
-        var mr = grip.GetComponent<MeshRenderer>();
-        if (mr != null) return mr.bounds.center;
-        return grip.position;
-    }
-
-    // Idle keys spin the claws. Kill the animator and leave the FBX rest pose alone.
-    static void AimClaws(Transform hold)
-    {
-        var anim = hold.GetComponentInChildren<Animator>();
-        if (anim != null) anim.enabled = false;
         var hub = FindNamed(hold, "EmitterHub");
-        if (hub != null) hub.localRotation = HubFbx;
+        if (hub == null) return;
+        hub.localRotation = HubFbx;
+        for (int i = 0; i < 4; i++)
+        {
+            var claw = FindNamed(hub, "Claw_" + (i + 1));
+            if (claw == null || claw.parent != hub) continue;
+            float a = i * 90f * Mathf.Deg2Rad;
+            claw.localPosition = new Vector3(Mathf.Cos(a) * 0.046f, Mathf.Sin(a) * 0.046f, 0.04f);
+            claw.localRotation = Quaternion.AngleAxis(i * 90f, Vector3.forward) * Quaternion.Euler(-6f, 0f, 0f);
+            claw.localScale = Vector3.one;
+        }
     }
 
     static Transform FindNamed(Transform root, string name)

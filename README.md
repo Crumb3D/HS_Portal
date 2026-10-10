@@ -2,7 +2,7 @@
 
 Survival-styled portal gun, gel, weighted cube, and long-fall boots for **7 Days to Die 3.2 and 3.3**. Portal 2 is a behaviour reference only — no Valve meshes.
 
-The held gun is an original industrial 7DTD weapon (claws, blue/orange coils, DANGER pack) built from `portal Gun Design.png`. **Version 0.3.15.**
+The held gun is an original industrial 7DTD weapon (claws, blue/orange coils, DANGER pack) built from `portal Gun Design.png`. **Version 0.3.16.**
 
 License: [MIT](LICENSE). Author: Crumb.
 
@@ -34,7 +34,7 @@ Creative menu still has everything. Admin `hsportal give` dumps the whole kit.
 
 **Portal gun** — left click blue, right click orange, **middle click** fizzles both. The HUD sits top-left and lights the colours that are currently out; the bar between them lights when the pair is linked. Placed portals also show on the compass in their colour. Speed in equals speed out — players, zombies, thrown items, and shots are not boosted.
 
-**Gel gun** — craft **Repulsion/Propulsion Goo** (paint, scrap polymers, acid) and reload with R. The ammo widget on the right of the HUD shows the magazine. Left click blue bounce gel, right click orange speed gel, **middle click** white conversion gel. Gel splurges as a puddle on the face you hit (floors, walls, ceilings, crates) and a new colour replaces the old one on that splat. White gel lets a portal sit on metal if the remaining geometry rules still pass (two solid blocks, clear face). **Dump a water jar or bucket** on a puddle to wash only the coating the water reaches — bounce, speed, and conversion all stop on the cleansed area.
+**Gel gun** — craft **Repulsion/Propulsion Goo** (paint, scrap polymers, acid) and reload with R. The ammo widget on the right of the HUD shows the magazine. Left click blue bounce gel, right click orange speed gel, **middle click** white conversion gel. Gel sits as a puddle on the face you hit. Blue gel throws you back at the speed you hit it — players, zombies, and thrown items. White gel lets a portal sit on metal if the remaining geometry rules still pass. **Dump a filled bucket** on a puddle to wash the coating the water reaches.
 
 **Long-fall boots** — feet slot. Worn look is the vanilla Biker/rocket-boot mesh (same SDCS feet as `rocketBootsAdmin`). Light-armor protection, durability, and a small run-speed bonus while worn. Fall damage is ignored only while they are equipped.
 

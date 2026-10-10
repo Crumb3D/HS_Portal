@@ -75,7 +75,7 @@ public static class HSPortalTeleporter
         return false;
     }
 
-    static Vector3 ReadVel(Entity e)
+    public static Vector3 ReadVel(Entity e)
     {
         var local = e as EntityPlayerLocal;
         if (local != null && local.vp_FPController != null)
@@ -94,7 +94,7 @@ public static class HSPortalTeleporter
         return e.physicsVel;
     }
 
-    static void WriteVel(Entity e, Vector3 vel)
+    public static void WriteVel(Entity e, Vector3 vel)
     {
         var local = e as EntityPlayerLocal;
         if (local != null && local.vp_FPController != null)

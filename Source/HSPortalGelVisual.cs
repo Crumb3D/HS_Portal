@@ -62,7 +62,7 @@ public static class HSPortalGelVisual
         var up = Mathf.Abs(n.y) > 0.85f ? Vector3.forward : Vector3.up;
         p.go.transform.rotation = Quaternion.LookRotation(n, up);
         float s = p.splat.Radius * 2f;
-        p.go.transform.localScale = new Vector3(s, s, 1f);
+        p.go.transform.localScale = new Vector3(s, s, 0.16f);
     }
 
     static Material ColorMat(byte color)
@@ -106,16 +106,16 @@ public static class HSPortalGelVisual
         var norms = new List<Vector3>();
         var uvs = new List<Vector2>();
         var tris = new List<int>();
-        verts.Add(new Vector3(0f, 0f, 0.04f));
+        verts.Add(new Vector3(0f, 0f, 0.35f));
         norms.Add(Vector3.forward);
         uvs.Add(new Vector2(0.5f, 0.5f));
         for (int i = 0; i <= segs; i++)
         {
             float a = (i / (float)segs) * Mathf.PI * 2f;
-            float wobble = 0.58f + 0.42f * Hash01(rng) + 0.12f * Mathf.Sin(a * 5f + seed * 0.017f);
+            float wobble = 0.82f + 0.18f * Hash01(rng) + 0.06f * Mathf.Sin(a * 4f + seed * 0.017f);
             float x = Mathf.Cos(a) * wobble * 0.5f;
             float y = Mathf.Sin(a) * wobble * 0.5f;
-            verts.Add(new Vector3(x, y, 0.008f));
+            verts.Add(new Vector3(x, y, 0.02f));
             norms.Add(Vector3.forward);
             uvs.Add(new Vector2(x + 0.5f, y + 0.5f));
         }
@@ -126,15 +126,15 @@ public static class HSPortalGelVisual
             tris.Add(i + 1);
         }
         int dome = verts.Count;
-        verts.Add(new Vector3(0.02f * (Hash01(rng) - 0.5f), 0.02f * (Hash01(rng) - 0.5f), 0.38f));
+        verts.Add(new Vector3(0.02f * (Hash01(rng) - 0.5f), 0.02f * (Hash01(rng) - 0.5f), 0.85f));
         norms.Add(Vector3.forward);
         uvs.Add(new Vector2(0.5f, 0.5f));
-        int domeSegs = 18;
+        int domeSegs = 14;
         for (int i = 0; i <= domeSegs; i++)
         {
             float a = (i / (float)domeSegs) * Mathf.PI * 2f;
-            float r = 0.18f + 0.07f * Hash01(rng);
-            verts.Add(new Vector3(Mathf.Cos(a) * r, Mathf.Sin(a) * r, 0.12f));
+            float r = 0.22f + 0.04f * Hash01(rng);
+            verts.Add(new Vector3(Mathf.Cos(a) * r, Mathf.Sin(a) * r, 0.4f));
             norms.Add(Vector3.forward);
             uvs.Add(new Vector2(0.5f + Mathf.Cos(a) * 0.2f, 0.5f + Mathf.Sin(a) * 0.2f));
         }

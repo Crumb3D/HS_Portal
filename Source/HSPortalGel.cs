@@ -22,13 +22,11 @@ public static class HSPortalGel
     public const byte White = 3;
     public const byte Cleanse = 4;
     public const float PaintRange = 12f;
-    public const float SplatRadius = 1.08f;
+    public const float SplatRadius = 0.72f;
     public const float SpeedMul = 2.8f;
-    public const float BounceMin = 2.4f;
-    public const float BounceImpact = 8f;
-    public const float BounceMax = 5.5f;
+    public const float BounceStep = 0.16f;
+    public const float BounceFpCap = 0.72f;
     public const float OrangeCap = 0.95f;
-    public const float WallPush = 1.15f;
     static float ignoreUntil;
     static bool wasOnBlue;
     static float bounceLock;
@@ -123,7 +121,8 @@ public static class HSPortalGel
     {
         if (normal.sqrMagnitude < 0.0001f) normal = HSPortalMath.FaceNormal(face);
         normal.Normalize();
-        center += normal * 0.03f;
+        var plane = HSPortalMath.FaceCenter(cell, face);
+        center = plane + Vector3.ProjectOnPlane(center - plane, normal) + normal * 0.02f;
         for (int i = splats.Count - 1; i >= 0; i--)
         {
             var s = splats[i];
@@ -216,6 +215,7 @@ public static class HSPortalGel
     public static void Tick()
     {
         EnsureLoaded();
+        BounceWorld();
         if (Time.unscaledTime < nextPrune) { PhysicsLocal(); return; }
         nextPrune = Time.unscaledTime + 0.35f;
         if (!HSPortalNet.IsAuthority) { PhysicsLocal(); return; }
@@ -329,44 +329,107 @@ public static class HSPortalGel
         }
 
         bool onBlue = top == Blue;
-        if (onBlue && !crouched && Time.unscaledTime > bounceLock)
+        if (!crouched && Time.unscaledTime > bounceLock)
         {
-            bool landed = grounded && !wasGrounded;
-            bool stepped = grounded && !wasOnBlue;
-            if (landed || stepped)
+            Vector3 n;
+            var feet = player.position + Vector3.up * 0.08f;
+            var mid = player.position + Vector3.up * 0.9f;
+            if (TryBlueNormal(feet, out n) || TryBlueNormal(mid, out n))
             {
-                float impact = Mathf.Max(0f, -lastFall);
-                fp.m_FallSpeed = Mathf.Clamp(BounceMin + impact * BounceImpact, BounceMin, BounceMax);
-                bounceLock = Time.unscaledTime + 0.14f;
+                var vel = new Vector3(fp.m_MotorThrottle.x + fp.m_ExternalForce.x, fp.m_FallSpeed, fp.m_MotorThrottle.z + fp.m_ExternalForce.z);
+                float into = Vector3.Dot(vel, n);
+                bool hitFloor = n.y > 0.65f && grounded && (onBlue || !wasOnBlue || !wasGrounded);
+                if (into < -0.012f || hitFloor)
+                {
+                    if (into >= 0f) into = -Mathf.Max(BounceStep, -lastFall);
+                    var bounced = vel - (2f * into) * n;
+                    if (n.y > 0.65f && bounced.y < BounceStep)
+                        bounced.y = BounceStep;
+                    bounced.y = Mathf.Clamp(bounced.y, -BounceFpCap, BounceFpCap);
+                    fp.m_FallSpeed = bounced.y;
+                    fp.m_ExternalForce = new Vector3(bounced.x, 0f, bounced.z);
+                    bounceLock = Time.unscaledTime + 0.16f;
+                    wallLock = bounceLock;
+                }
             }
         }
-
-        if (!crouched && Time.unscaledTime > wallLock)
-            TryWallBounce(fp, player, world);
 
         wasOnBlue = onBlue && grounded;
         wasGrounded = grounded;
         lastFall = fp.m_FallSpeed;
     }
 
-    static void TryWallBounce(vp_FPController fp, EntityPlayerLocal player, World world)
+    static readonly List<Entity> near = new List<Entity>();
+    static readonly Dictionary<int, float> entityLock = new Dictionary<int, float>();
+
+    static float nextBounce;
+
+    static void BounceWorld()
     {
-        var feet = player.position;
-        var mid = feet + Vector3.up * 0.9f;
-        var faces = new[] { BlockFace.North, BlockFace.South, BlockFace.East, BlockFace.West };
-        for (int i = 0; i < faces.Length; i++)
+        if (!HSPortalNet.IsAuthority) return;
+        if (Time.unscaledTime < nextBounce) return;
+        nextBounce = Time.unscaledTime + 0.03f;
+        var world = GameManager.Instance != null ? GameManager.Instance.World : null;
+        if (world == null) return;
+        for (int i = 0; i < splats.Count; i++)
         {
-            var face = faces[i];
-            var n = HSPortalMath.FaceNormal(face);
-            var probe = HSPortalMath.WorldToCell(mid + n * 0.35f);
-            if (Get(probe, face) != Blue) continue;
-            var into = fp.m_MotorThrottle + fp.m_ExternalForce;
-            if (Vector3.Dot(into, n) > -0.008f) continue;
-            fp.m_ExternalForce = new Vector3(n.x * WallPush, 0f, n.z * WallPush);
-            if (fp.m_FallSpeed < 0.55f) fp.m_FallSpeed = 0.55f;
-            wallLock = Time.unscaledTime + 0.2f;
-            return;
+            var s = splats[i];
+            if (s == null || s.Color != Blue) continue;
+            near.Clear();
+            var bb = new Bounds(s.Center, Vector3.one * (s.Radius * 2f + 1.6f));
+            world.GetEntitiesInBounds(typeof(Entity), bb, near);
+            for (int e = 0; e < near.Count; e++)
+                BounceEntity(near[e], s);
         }
+    }
+
+    static void BounceEntity(Entity ent, HSPortalGelSplat s)
+    {
+        if (ent == null || ent.IsDead()) return;
+        if (ent is EntityPlayerLocal) return;
+        if (ent is EntityFallingBlock) return;
+        float locked;
+        if (entityLock.TryGetValue(ent.entityId, out locked) && Time.unscaledTime < locked) return;
+        var n = s.Normal.sqrMagnitude > 0.0001f ? s.Normal.normalized : HSPortalMath.FaceNormal(s.Face);
+        var mid = ent.position + Vector3.up * Mathf.Max(0.2f, ent.boundingBox.size.y * 0.45f);
+        if (!OverlapsSplat(s, ent.position + Vector3.up * 0.08f) && !OverlapsSplat(s, mid)) return;
+        var vel = HSPortalTeleporter.ReadVel(ent);
+        float into = Vector3.Dot(vel, n);
+        if (into > -0.08f) return;
+        var bounced = vel - (2f * into) * n;
+        HSPortalTeleporter.WriteVel(ent, bounced);
+        entityLock[ent.entityId] = Time.unscaledTime + 0.16f;
+    }
+
+    public static bool TryBlueNormal(Vector3 worldPos, out Vector3 normal)
+    {
+        normal = Vector3.zero;
+        float best = 999f;
+        for (int i = 0; i < splats.Count; i++)
+        {
+            var s = splats[i];
+            if (s == null || s.Color != Blue) continue;
+            var n = s.Normal.sqrMagnitude > 0.0001f ? s.Normal.normalized : HSPortalMath.FaceNormal(s.Face);
+            float along = Vector3.Dot(worldPos - s.Center, n);
+            if (along < -0.12f || along > 0.55f) continue;
+            float d = Vector3.ProjectOnPlane(worldPos - s.Center, n).magnitude;
+            if (d > s.Radius + 0.2f) continue;
+            if (d < best)
+            {
+                best = d;
+                normal = n;
+            }
+        }
+        return best < 900f;
+    }
+
+    static bool OverlapsSplat(HSPortalGelSplat s, Vector3 worldPos)
+    {
+        if (s == null) return false;
+        var n = s.Normal.sqrMagnitude > 0.0001f ? s.Normal.normalized : HSPortalMath.FaceNormal(s.Face);
+        float along = Mathf.Abs(Vector3.Dot(worldPos - s.Center, n));
+        if (along > 0.55f) return false;
+        return Vector3.ProjectOnPlane(worldPos - s.Center, n).magnitude <= s.Radius + 0.2f;
     }
 
     static Vector3i FootCell(Vector3 pos)
