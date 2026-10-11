@@ -1,0 +1,28 @@
+<configs>
+	<append xpath="/Sounds">
+		<SoundDataNode name="hsportalGunBlue">
+			<AudioSource name="@:Sounds/Prefabs/AudioSource_WeaponFire.prefab"/>
+			<NetworkAudioSource name="@:Sounds/Prefabs/AudioSource_WeaponFire_Network.prefab"/>
+			<Noise ID="3" noise="18" time="2" muffled_when_crouched="0.65"/>
+			<AudioClip ClipName="#@modfolder:Sounds/portalgun_shoot_blue1.wav"/>
+			<LocalCrouchVolumeScale value="0.5"/>
+			<CrouchNoiseScale value="1"/>
+			<NoiseScale value="1"/>
+			<MaxVoices value="8"/>
+			<MaxVoicesPerEntity value="3"/>
+			<MaxRepeatRate value="0.05"/>
+		</SoundDataNode>
+		<SoundDataNode name="hsportalGunOrange">
+			<AudioSource name="@:Sounds/Prefabs/AudioSource_WeaponFire.prefab"/>
+			<NetworkAudioSource name="@:Sounds/Prefabs/AudioSource_WeaponFire_Network.prefab"/>
+			<Noise ID="3" noise="18" time="2" muffled_when_crouched="0.65"/>
+			<AudioClip ClipName="#@modfolder:Sounds/portalgun_shoot_orange1.wav"/>
+			<LocalCrouchVolumeScale value="0.5"/>
+			<CrouchNoiseScale value="1"/>
+			<NoiseScale value="1"/>
+			<MaxVoices value="8"/>
+			<MaxVoicesPerEntity value="3"/>
+			<MaxRepeatRate value="0.05"/>
+		</SoundDataNode>
+	</append>
+</configs>

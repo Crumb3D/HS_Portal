@@ -20,7 +20,7 @@ public class ItemActionHSPortalGun : ItemAction
             bool orange = _actionData.indexInEntityOfAction == 1;
             PlayGunAnim(_actionData, "Fire");
             PlayAvatarFire(player);
-            try { Audio.Manager.Play(player, "pistol_fire"); } catch { }
+            HSPortalSounds.PlayShot(player, orange);
             HSPortalController.QueueShot(player, orange, FireDelay);
         }
         catch (Exception e)

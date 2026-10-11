@@ -22,6 +22,7 @@ public class HSPortalController : MonoBehaviour
         var go = new GameObject("HSPortalController");
         Object.DontDestroyOnLoad(go);
         instance = go.AddComponent<HSPortalController>();
+        instance.StartCoroutine(HSPortalSounds.LoadAll());
     }
 
     public static void QueueShot(EntityPlayerLocal player, bool orange, float delay)

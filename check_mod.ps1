@@ -77,6 +77,11 @@ foreach ($c in ([regex]::Matches($windows, 'controller="([^"]+)"') | ForEach-Obj
     else { Ok ("xui controller {0}" -f $c) }
 }
 
+foreach ($w in @("portalgun_shoot_blue1.wav", "portalgun_shoot_orange1.wav")) {
+    $p = Join-Path $Root ("Sounds\" + $w)
+    if (-not (Test-Path $p)) { Fail "Sounds/$w missing" } else { Ok "sound $w" }
+}
+
 $bundle = Join-Path $Root "Resources\HSPortal.unity3d"
 if (-not (Test-Path $bundle)) { Fail "Resources/HSPortal.unity3d missing" }
 else { Ok ("bundle {0} bytes" -f (Get-Item $bundle).Length) }
