@@ -95,7 +95,8 @@ public static class HSPortalPlacement
         var cB = HSPortalMath.FaceCenter(b, face);
         var center = (cA + cB) * 0.5f + n * HSPortalMath.SurfaceOffset;
         var up = cB - cA;
-        if (Mathf.Abs(n.y) < 0.55f)
+        bool wall = Mathf.Abs(n.y) < 0.55f;
+        if (wall)
         {
             if (up.y < 0f) up = -up;
             if (up.sqrMagnitude < 0.0001f) up = Vector3.up;
@@ -108,9 +109,17 @@ public static class HSPortalPlacement
         }
         up.Normalize();
 
-        var other = Other(ownerId, orange);
-        if (other != null && Overlaps(center, n, other))
+        const float hw = 0.48f;
+        const float hh = 0.98f;
+        if (wall && !TryLiftWallAboveFloor(world, ref center, n, hh, face, ref a, ref b))
         {
+            fail = Localization.Get("hsportalDeniedBlocked");
+            Spark(hitPos, orange);
+            return false;
+        }
+        if (OverlapsAny(ownerId, orange, center, n, up, hw, hh))
+        {
+            fail = Localization.Get("hsportalDeniedOverlap");
             Spark(hitPos, orange);
             return false;
         }
@@ -121,8 +130,8 @@ public static class HSPortalPlacement
         portal.Center = center;
         portal.Normal = n;
         portal.Up = up;
-        portal.HalfWidth = 0.48f;
-        portal.HalfHeight = 0.98f;
+        portal.HalfWidth = hw;
+        portal.HalfHeight = hh;
         portal.Face = face;
         portal.Cells = new[] { a, b };
         portal.FinishAxes();
@@ -130,19 +139,72 @@ public static class HSPortalPlacement
         return true;
     }
 
-    static HSPortal Other(int ownerId, bool orange)
+    static bool TryLiftWallAboveFloor(World world, ref Vector3 center, Vector3 n, float hh, BlockFace face, ref Vector3i a, ref Vector3i b)
     {
-        var pair = HSPortalWorld.GetPair(ownerId, false);
-        if (pair == null) return null;
-        return orange ? pair.Blue : pair.Orange;
+        float floorY;
+        if (!TryFindFloorY(world, center + n * 0.55f, center.y + 0.25f, out floorY))
+            return true;
+        float bottom = center.y - hh;
+        float need = floorY + 0.06f;
+        if (bottom >= need) return true;
+        float lift = need - bottom;
+        if (lift > 1.15f) return false;
+        var lifted = new Vector3(center.x, center.y + lift, center.z);
+        var low = HSPortalMath.WorldToCell(lifted - Vector3.up * (hh - 0.2f) - n * 0.25f);
+        var high = HSPortalMath.WorldToCell(lifted + Vector3.up * (hh - 0.2f) - n * 0.25f);
+        if (!IsPortalSurface(world, low, face) || !IsPortalSurface(world, high, face)) return false;
+        if (IsFaceObstructed(world, low, face) || IsFaceObstructed(world, high, face)) return false;
+        var topProbe = lifted + Vector3.up * (hh + 0.08f) + n * 0.2f;
+        var topCell = HSPortalMath.WorldToCell(topProbe);
+        if (IsSolidSupport(world, topCell) || IsMetal(world, topCell)) return false;
+        center = lifted;
+        a = low;
+        b = high;
+        return true;
     }
 
-    static bool Overlaps(Vector3 center, Vector3 n, HSPortal other)
+    static bool TryFindFloorY(World world, Vector3 probe, float portalMidY, out float floorY)
     {
-        if (Vector3.Dot(n, other.Normal) < 0.95f) return false;
-        var d = center - other.Center;
-        if (Mathf.Abs(Vector3.Dot(d, n)) > 0.2f) return false;
-        return d.sqrMagnitude < 1.6f;
+        floorY = 0f;
+        var start = HSPortalMath.WorldToCell(probe);
+        for (int i = 0; i <= 6; i++)
+        {
+            var c = new Vector3i(start.x, start.y - i, start.z);
+            if (!IsSolidSupport(world, c) && !IsMetal(world, c)) continue;
+            float top = c.y + 1f;
+            if (top > portalMidY - 0.35f) continue;
+            floorY = top;
+            return true;
+        }
+        return false;
+    }
+
+    static bool OverlapsAny(int ownerId, bool orange, Vector3 center, Vector3 n, Vector3 up, float hw, float hh)
+    {
+        foreach (var kv in HSPortalWorld.All)
+        {
+            var pair = kv.Value;
+            if (pair == null) continue;
+            if (OverlapsPortal(center, n, up, hw, hh, pair.Blue) && !(kv.Key == ownerId && !orange))
+                return true;
+            if (OverlapsPortal(center, n, up, hw, hh, pair.Orange) && !(kv.Key == ownerId && orange))
+                return true;
+        }
+        return false;
+    }
+
+    static bool OverlapsPortal(Vector3 center, Vector3 n, Vector3 up, float hw, float hh, HSPortal other)
+    {
+        if (other == null) return false;
+        if (Mathf.Abs(Vector3.Dot(other.Center - center, n)) > 0.45f) return false;
+        if (Vector3.Dot(n, other.Normal) < 0.35f) return false;
+        var right = Vector3.Cross(up, n);
+        if (right.sqrMagnitude < 0.0001f) right = Vector3.Cross(Vector3.up, n);
+        right.Normalize();
+        var d = other.Center - center;
+        float x = Vector3.Dot(d, right);
+        float y = Vector3.Dot(d, up);
+        return Mathf.Abs(x) < hw + other.HalfWidth + 0.1f && Mathf.Abs(y) < hh + other.HalfHeight + 0.1f;
     }
 
     static Vector3 HitWorldPos(WorldRayHitInfo hit, Vector3i cell)

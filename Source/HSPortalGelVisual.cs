@@ -38,7 +38,7 @@ public static class HSPortalGelVisual
             p.go = new GameObject("HSGelSplat");
             UnityEngine.Object.DontDestroyOnLoad(p.go);
             var mf = p.go.AddComponent<MeshFilter>();
-            mf.sharedMesh = Blob(s.Seed);
+            mf.sharedMesh = Puddle(s.Seed);
             var mr = p.go.AddComponent<MeshRenderer>();
             mr.sharedMaterial = ColorMat(s.Color);
             mr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
@@ -58,26 +58,29 @@ public static class HSPortalGelVisual
     {
         if (p == null || p.go == null || p.splat == null) return;
         var n = p.splat.Normal.sqrMagnitude > 0.0001f ? p.splat.Normal.normalized : HSPortalMath.FaceNormal(p.splat.Face);
-        p.go.transform.position = p.splat.Center - Origin.position;
+        var plane = HSPortalMath.FaceCenter(p.splat.Cell, p.splat.Face) + n * 0.012f;
+        var along = Vector3.ProjectOnPlane(p.splat.Center - plane, n);
+        p.go.transform.position = plane + along - Origin.position;
         var up = Mathf.Abs(n.y) > 0.85f ? Vector3.forward : Vector3.up;
         p.go.transform.rotation = Quaternion.LookRotation(n, up);
-        float s = p.splat.Radius * 2f;
-        p.go.transform.localScale = new Vector3(s, s, 0.16f);
+        float w = p.splat.Radius * 1.7f;
+        float h = Mathf.Abs(n.y) > 0.85f ? w : w * 1.15f;
+        p.go.transform.localScale = new Vector3(w, h, 0.045f);
     }
 
     static Material ColorMat(byte color)
     {
         if (color == HSPortalGel.Orange)
         {
-            if (orangeMat == null) orangeMat = Make(new Color(1f, 0.42f, 0.06f, 0.94f));
+            if (orangeMat == null) orangeMat = Make(new Color(1f, 0.45f, 0.08f, 0.82f));
             return orangeMat;
         }
         if (color == HSPortalGel.White)
         {
-            if (whiteMat == null) whiteMat = Make(new Color(0.93f, 0.95f, 0.98f, 0.96f));
+            if (whiteMat == null) whiteMat = Make(new Color(0.94f, 0.96f, 0.99f, 0.8f));
             return whiteMat;
         }
-        if (blueMat == null) blueMat = Make(new Color(0.18f, 0.55f, 1f, 0.94f));
+        if (blueMat == null) blueMat = Make(new Color(0.2f, 0.58f, 1f, 0.82f));
         return blueMat;
     }
 
@@ -85,9 +88,9 @@ public static class HSPortalGelVisual
     {
         if (colorShader == null)
         {
-            colorShader = Shader.Find("Sprites/Default");
+            colorShader = Shader.Find("Unlit/Transparent");
+            if (colorShader == null) colorShader = Shader.Find("Sprites/Default");
             if (colorShader == null) colorShader = Shader.Find("Unlit/Color");
-            if (colorShader == null) colorShader = Shader.Find("Unlit/Transparent");
         }
         var m = new Material(colorShader);
         if (m.HasProperty("_Color")) m.SetColor("_Color", c);
@@ -96,25 +99,27 @@ public static class HSPortalGelVisual
         return m;
     }
 
-    static Mesh Blob(int seed)
+    static Mesh Puddle(int seed)
     {
         Mesh cached;
         if (blobs.TryGetValue(seed, out cached) && cached != null) return cached;
         var rng = new System.Random(seed);
-        int segs = 26;
+        int segs = 36;
         var verts = new List<Vector3>();
         var norms = new List<Vector3>();
         var uvs = new List<Vector2>();
         var tris = new List<int>();
-        verts.Add(new Vector3(0f, 0f, 0.35f));
+        verts.Add(new Vector3(0f, 0f, 0.55f));
         norms.Add(Vector3.forward);
         uvs.Add(new Vector2(0.5f, 0.5f));
         for (int i = 0; i <= segs; i++)
         {
             float a = (i / (float)segs) * Mathf.PI * 2f;
-            float wobble = 0.82f + 0.18f * Hash01(rng) + 0.06f * Mathf.Sin(a * 4f + seed * 0.017f);
-            float x = Mathf.Cos(a) * wobble * 0.5f;
-            float y = Mathf.Sin(a) * wobble * 0.5f;
+            float lobe = 0.78f + 0.16f * Mathf.Sin(a * 3f + seed * 0.11f) + 0.1f * Hash01(rng);
+            if (Mathf.Sin(a + 1.2f) < -0.55f) lobe += 0.18f * Hash01(rng);
+            float x = Mathf.Cos(a) * lobe * 0.5f;
+            float y = Mathf.Sin(a) * lobe * 0.5f;
+            if (y < 0f) y *= 1.12f + 0.12f * Hash01(rng);
             verts.Add(new Vector3(x, y, 0.02f));
             norms.Add(Vector3.forward);
             uvs.Add(new Vector2(x + 0.5f, y + 0.5f));
@@ -125,27 +130,8 @@ public static class HSPortalGelVisual
             tris.Add(i);
             tris.Add(i + 1);
         }
-        int dome = verts.Count;
-        verts.Add(new Vector3(0.02f * (Hash01(rng) - 0.5f), 0.02f * (Hash01(rng) - 0.5f), 0.85f));
-        norms.Add(Vector3.forward);
-        uvs.Add(new Vector2(0.5f, 0.5f));
-        int domeSegs = 14;
-        for (int i = 0; i <= domeSegs; i++)
-        {
-            float a = (i / (float)domeSegs) * Mathf.PI * 2f;
-            float r = 0.22f + 0.04f * Hash01(rng);
-            verts.Add(new Vector3(Mathf.Cos(a) * r, Mathf.Sin(a) * r, 0.4f));
-            norms.Add(Vector3.forward);
-            uvs.Add(new Vector2(0.5f + Mathf.Cos(a) * 0.2f, 0.5f + Mathf.Sin(a) * 0.2f));
-        }
-        for (int i = 1; i <= domeSegs; i++)
-        {
-            tris.Add(dome);
-            tris.Add(dome + i);
-            tris.Add(dome + i + 1);
-        }
         var mesh = new Mesh();
-        mesh.name = "HSGelBlob";
+        mesh.name = "HSGelPuddle";
         mesh.vertices = verts.ToArray();
         mesh.normals = norms.ToArray();
         mesh.uv = uvs.ToArray();
