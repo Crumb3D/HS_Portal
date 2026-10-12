@@ -27,7 +27,7 @@ public class XUiC_HSPortalHud : XUiController
     {
         bool hold, blue, orange, linked;
         ItemActionHSPortalGun.ReadHud(ItemActionHSPortalGun.LocalPlayer(), out hold, out blue, out orange, out linked);
-        bool show = hold || blue || orange;
+        bool show = hold;
         switch (_bindingName)
         {
             case "hudvisible":

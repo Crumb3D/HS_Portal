@@ -51,12 +51,33 @@ public static class HSPortalVisual
         DropAllCompass();
     }
 
+    static void TickCompass()
+    {
+        if (GameManager.IsDedicatedServer) return;
+        var p = ItemActionHSPortalGun.LocalPlayer();
+        if (!ItemActionHSPortalGun.IsHolding(p))
+        {
+            if (compass.Count > 0) DropAllCompass();
+            return;
+        }
+        var pair = HSPortalWorld.GetPair(p.entityId, false);
+        bool wantBlue = pair != null && pair.Blue != null;
+        bool wantOrange = pair != null && pair.Orange != null;
+        bool haveBlue = compass.ContainsKey(Key(p.entityId, false));
+        bool haveOrange = compass.ContainsKey(Key(p.entityId, true));
+        if (wantBlue == haveBlue && wantOrange == haveOrange) return;
+        RebuildCompass(p.entityId);
+    }
+
     static void RebuildCompass(int ownerId)
     {
         DropCompass(Key(ownerId, false));
         DropCompass(Key(ownerId, true));
         if (GameManager.IsDedicatedServer) return;
         if (!NavObjectManager.HasInstance) return;
+        var p = ItemActionHSPortalGun.LocalPlayer();
+        if (p == null || p.entityId != ownerId) return;
+        if (!ItemActionHSPortalGun.IsHolding(p)) return;
         var pair = HSPortalWorld.GetPair(ownerId, false);
         if (pair == null) return;
         if (pair.Blue != null) PinCompass(Key(ownerId, false), "hsportalBlue", pair.Blue.Center);
@@ -87,6 +108,7 @@ public static class HSPortalVisual
 
     public static void SyncAll()
     {
+        TickCompass();
         if (views.Count == 0) return;
         foreach (var kv in HSPortalWorld.All)
         {
