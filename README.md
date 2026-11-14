@@ -1,14 +1,14 @@
 # HS Portal
 
-Survival-styled portal gun, gel, weighted cube, and long-fall boots for **7 Days to Die 3.2 and 3.3**. Portal 2 is a behaviour reference only — no Valve meshes.
+Survival-styled portal gun, gel, weighted cube, and long-fall boots for **7 Days to Die 3.2, 3.3 and 3.4**. Portal 2 is a behaviour reference only — no Valve meshes.
 
-The held gun is an original industrial 7DTD weapon (claws, blue/orange coils, DANGER pack) built from `portal Gun Design.png`. **Version 0.3.19.**
+The held gun is an original industrial 7DTD weapon (claws, blue/orange coils, DANGER pack) built from `portal Gun Design.png`. **Version 0.3.20.**
 
 License: [MIT](LICENSE). Author: Crumb.
 
 ## Requirements
 
-- 7 Days to Die **3.2** or **3.3** (PC).
+- 7 Days to Die **3.2**, **3.3** or **3.4** (PC).
 - **Harmony** — `0_TFP_Harmony`, ships with the game.
 - **Multiplayer:** the same `HS_Portal` folder on the **dedicated server and every client**.
 
